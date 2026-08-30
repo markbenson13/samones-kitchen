@@ -1,15 +1,27 @@
 import { prisma } from "@/lib/prisma";
 import { formatMoney, toNumber } from "@/lib/money";
 import {
-  createFoodItem,
+  upsertFoodItem,
   deleteFoodItem,
   toggleFoodItemActive,
 } from "@/app/actions/food-items";
+import { FoodItemForm } from "./food-item-form";
 
 export default async function FoodItemsPage() {
   const foodItems = await prisma.foodItem.findMany({
     orderBy: { createdAt: "desc" },
   });
+
+  const formItems = foodItems.map((item) => ({
+    id: item.id,
+    name: item.name,
+    category: item.category,
+    costPrice: item.costPrice.toString(),
+    sellingPrice: item.sellingPrice.toString(),
+  }));
+  const categories = Array.from(
+    new Set(foodItems.map((item) => item.category).filter((c) => c))
+  ).sort() as string[];
 
   return (
     <div className="space-y-8">
@@ -24,68 +36,15 @@ export default async function FoodItemsPage() {
 
       <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
         <h2 className="text-sm font-medium text-brand-brown">Add food item</h2>
-        <form
-          action={createFoodItem}
-          className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
-        >
-          <div className="lg:col-span-2">
-            <label className="block text-xs font-medium text-brand-brown-light">
-              Name
-            </label>
-            <input
-              name="name"
-              type="text"
-              required
-              placeholder="e.g. Adobo"
-              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-brand-brown-light">
-              Category
-            </label>
-            <input
-              name="category"
-              type="text"
-              placeholder="Optional"
-              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-brand-brown-light">
-              Cost price
-            </label>
-            <input
-              name="costPrice"
-              type="number"
-              step="0.01"
-              min="0"
-              required
-              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-brand-brown-light">
-              Selling price
-            </label>
-            <input
-              name="sellingPrice"
-              type="number"
-              step="0.01"
-              min="0"
-              required
-              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="flex items-end lg:col-span-5">
-            <button
-              type="submit"
-              className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
-            >
-              Add item
-            </button>
-          </div>
-        </form>
+        <p className="mt-1 text-xs text-brand-brown-light">
+          Type an existing name to load and edit that item instead of
+          creating a duplicate.
+        </p>
+        <FoodItemForm
+          action={upsertFoodItem}
+          items={formItems}
+          categories={categories}
+        />
       </section>
 
       <section className="overflow-hidden rounded-xl border border-brand-tan bg-white shadow-sm">

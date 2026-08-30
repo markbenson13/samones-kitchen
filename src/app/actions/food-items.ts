@@ -9,9 +9,10 @@ async function requireAdmin() {
   if (!session) throw new Error("Unauthorized");
 }
 
-export async function createFoodItem(formData: FormData) {
+export async function upsertFoodItem(formData: FormData) {
   await requireAdmin();
 
+  const id = String(formData.get("id") ?? "").trim() || null;
   const name = String(formData.get("name") ?? "").trim();
   const category = String(formData.get("category") ?? "").trim() || null;
   const costPrice = Number(formData.get("costPrice"));
@@ -23,9 +24,16 @@ export async function createFoodItem(formData: FormData) {
   if (!Number.isFinite(sellingPrice) || sellingPrice < 0)
     throw new Error("Invalid selling price");
 
-  await prisma.foodItem.create({
-    data: { name, category, costPrice, sellingPrice },
-  });
+  if (id) {
+    await prisma.foodItem.update({
+      where: { id },
+      data: { name, category, costPrice, sellingPrice },
+    });
+  } else {
+    await prisma.foodItem.create({
+      data: { name, category, costPrice, sellingPrice },
+    });
+  }
 
   revalidatePath("/food-items");
   revalidatePath("/sales");
