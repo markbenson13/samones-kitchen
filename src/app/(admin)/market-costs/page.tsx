@@ -1,10 +1,61 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoney, toNumber } from "@/lib/money";
 import { toDateInputValue } from "@/lib/date";
 import { createMarketCost, deleteMarketCost } from "@/app/actions/market-costs";
 
-export default async function MarketCostsPage() {
+const DEFAULT_RANGE_DAYS = 30;
+
+// MarketCost `date` values are date-only inputs, stored as UTC midnight
+// (`new Date("YYYY-MM-DD")` parses as UTC). Range math/grouping/formatting
+// must stay in UTC too, or entries drift to the wrong day for any server
+// timezone ahead of UTC.
+function utcDateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function formatGroupDate(date: Date) {
+  const weekday = date.toLocaleDateString("en-US", {
+    weekday: "long",
+    timeZone: "UTC",
+  });
+  const monthDay = date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+  return `${monthDay} — ${weekday}`;
+}
+
+function formatRangeDate(date: Date) {
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+export default async function MarketCostsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from: fromParam, to: toParam } = await searchParams;
+
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const defaultFrom = new Date(today);
+  defaultFrom.setUTCDate(defaultFrom.getUTCDate() - (DEFAULT_RANGE_DAYS - 1));
+
+  const fromDate = fromParam ? new Date(fromParam) : defaultFrom;
+  const toDate = toParam ? new Date(toParam) : today;
+  // `lt` the day after `to` so the whole `to` day (stored at UTC midnight) is included.
+  const toDateExclusive = new Date(toDate);
+  toDateExclusive.setUTCDate(toDateExclusive.getUTCDate() + 1);
+
   const marketCosts = await prisma.marketCost.findMany({
+    where: { date: { gte: fromDate, lt: toDateExclusive } },
     orderBy: { date: "desc" },
   });
 
@@ -13,26 +64,49 @@ export default async function MarketCostsPage() {
     0
   );
 
+  const groups: {
+    key: string;
+    label: string;
+    items: typeof marketCosts;
+    subtotal: number;
+  }[] = [];
+  for (const cost of marketCosts) {
+    const key = utcDateKey(cost.date);
+    const amount = toNumber(cost.amount.toString());
+    const currentGroup = groups[groups.length - 1];
+    if (currentGroup && currentGroup.key === key) {
+      currentGroup.items.push(cost);
+      currentGroup.subtotal += amount;
+    } else {
+      groups.push({
+        key,
+        label: formatGroupDate(cost.date),
+        items: [cost],
+        subtotal: amount,
+      });
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold text-neutral-900">
+        <h1 className="text-2xl font-semibold text-brand-brown">
           Market Costs
         </h1>
-        <p className="mt-1 text-sm text-neutral-500">
+        <p className="mt-1 text-sm text-brand-brown-light">
           Log every trip to the market — ingredients, supplies, and other
           expenses.
         </p>
       </div>
 
-      <section className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-medium text-neutral-900">Add cost</h2>
+      <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-medium text-brand-brown">Add cost</h2>
         <form
           action={createMarketCost}
-          className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+          className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
         >
           <div className="lg:col-span-2">
-            <label className="block text-xs font-medium text-neutral-600">
+            <label className="block text-xs font-medium text-brand-brown-light">
               Description
             </label>
             <input
@@ -40,11 +114,22 @@ export default async function MarketCostsPage() {
               type="text"
               required
               placeholder="e.g. Chicken, vegetables"
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-neutral-600">
+            <label className="block text-xs font-medium text-brand-brown-light">
+              Quantity
+            </label>
+            <input
+              name="quantity"
+              type="text"
+              placeholder="e.g. 2kl, 1/4"
+              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-brand-brown-light">
               Amount
             </label>
             <input
@@ -53,24 +138,24 @@ export default async function MarketCostsPage() {
               step="0.01"
               min="0"
               required
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-neutral-600">
+            <label className="block text-xs font-medium text-brand-brown-light">
               Date
             </label>
             <input
               name="date"
               type="date"
               defaultValue={toDateInputValue(new Date())}
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
             />
           </div>
-          <div className="flex items-end lg:col-span-4">
+          <div className="flex items-end lg:col-span-5">
             <button
               type="submit"
-              className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+              className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
             >
               Add cost
             </button>
@@ -78,66 +163,116 @@ export default async function MarketCostsPage() {
         </form>
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-neutral-50 text-xs uppercase text-neutral-500">
-            <tr>
-              <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3">Description</th>
-              <th className="px-4 py-3">Amount</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-100">
-            {marketCosts.map((cost) => (
-              <tr key={cost.id}>
-                <td className="px-4 py-3 text-neutral-500">
-                  {cost.date.toLocaleDateString()}
-                </td>
-                <td className="px-4 py-3 font-medium text-neutral-900">
-                  {cost.description}
-                </td>
-                <td className="px-4 py-3">
-                  {formatMoney(cost.amount.toString())}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <form action={deleteMarketCost.bind(null, cost.id)}>
-                    <button
-                      type="submit"
-                      className="text-xs font-medium text-red-600 hover:underline"
-                    >
-                      Delete
-                    </button>
-                  </form>
-                </td>
+      <form className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-xs font-medium text-brand-brown-light">
+            From
+          </label>
+          <input
+            name="from"
+            type="date"
+            defaultValue={utcDateKey(fromDate)}
+            className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-brand-brown-light">
+            To
+          </label>
+          <input
+            name="to"
+            type="date"
+            defaultValue={utcDateKey(toDate)}
+            className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
+          />
+        </div>
+        <button
+          type="submit"
+          className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
+        >
+          Apply
+        </button>
+        <Link
+          href="/market-costs"
+          className="rounded-md border border-brand-tan px-4 py-2 text-sm font-medium text-brand-brown hover:bg-brand-cream"
+        >
+          Reset
+        </Link>
+      </form>
+
+      <section className="overflow-hidden rounded-xl border border-brand-tan bg-white shadow-sm">
+        {groups.length === 0 ? (
+          <p className="px-4 py-6 text-center text-sm text-brand-brown-light">
+            No market costs logged in this period.
+          </p>
+        ) : (
+          <table className="w-full text-left text-sm">
+            <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
+              <tr>
+                <th className="px-4 py-3">Description</th>
+                <th className="px-4 py-3">Quantity</th>
+                <th className="px-4 py-3">Amount</th>
+                <th className="px-4 py-3" />
               </tr>
+            </thead>
+            {groups.map((group) => (
+              <tbody
+                key={group.key}
+                className="divide-y divide-brand-tan/60 border-t-2 border-brand-tan"
+              >
+                <tr className="bg-brand-cream-dark/50">
+                  <td
+                    colSpan={2}
+                    className="px-4 py-2 text-sm font-semibold text-brand-brown"
+                  >
+                    {group.label}
+                  </td>
+                  <td className="px-4 py-2 text-sm font-semibold text-brand-brown">
+                    {formatMoney(group.subtotal)}
+                  </td>
+                  <td />
+                </tr>
+                {group.items.map((cost) => (
+                  <tr key={cost.id}>
+                    <td className="px-4 py-3 font-medium text-brand-brown">
+                      {cost.description}
+                    </td>
+                    <td className="px-4 py-3 text-brand-brown-light">
+                      {cost.quantity ?? "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {formatMoney(cost.amount.toString())}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <form action={deleteMarketCost.bind(null, cost.id)}>
+                        <button
+                          type="submit"
+                          className="text-xs font-medium text-red-600 hover:underline"
+                        >
+                          Delete
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             ))}
-            {marketCosts.length === 0 && (
+            <tfoot className="border-t-2 border-brand-tan bg-brand-cream">
               <tr>
                 <td
-                  colSpan={4}
-                  className="px-4 py-6 text-center text-sm text-neutral-500"
+                  className="px-4 py-3 font-medium text-brand-brown"
+                  colSpan={2}
                 >
-                  No market costs logged yet.
+                  Total ({formatRangeDate(fromDate)} – {formatRangeDate(toDate)})
                 </td>
-              </tr>
-            )}
-          </tbody>
-          {marketCosts.length > 0 && (
-            <tfoot className="border-t border-neutral-200 bg-neutral-50">
-              <tr>
-                <td className="px-4 py-3 font-medium text-neutral-900">
-                  Total
-                </td>
-                <td />
-                <td className="px-4 py-3 font-semibold text-neutral-900">
+                <td className="px-4 py-3 font-semibold text-brand-brown">
                   {formatMoney(total)}
                 </td>
                 <td />
               </tr>
             </tfoot>
-          )}
-        </table>
+          </table>
+        )}
       </section>
     </div>
   );

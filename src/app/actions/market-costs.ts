@@ -13,6 +13,7 @@ export async function createMarketCost(formData: FormData) {
   await requireAdmin();
 
   const description = String(formData.get("description") ?? "").trim();
+  const quantity = String(formData.get("quantity") ?? "").trim() || null;
   const amount = Number(formData.get("amount"));
   const dateStr = String(formData.get("date") ?? "");
 
@@ -22,7 +23,7 @@ export async function createMarketCost(formData: FormData) {
   const date = dateStr ? new Date(dateStr) : new Date();
 
   await prisma.marketCost.create({
-    data: { description, amount, date },
+    data: { description, quantity, amount, date },
   });
 
   revalidatePath("/market-costs");
