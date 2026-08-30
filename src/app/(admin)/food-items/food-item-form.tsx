@@ -1,6 +1,7 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useState } from "react";
+import { Combobox } from "./combobox";
 
 type FoodItemOption = {
   id: string;
@@ -21,8 +22,6 @@ export function FoodItemForm({
   items: FoodItemOption[];
   categories: string[];
 }) {
-  const nameListId = useId();
-  const categoryListId = useId();
   const [fields, setFields] = useState(emptyState);
 
   function handleNameChange(value: string) {
@@ -54,43 +53,31 @@ export function FoodItemForm({
         <label className="block text-xs font-medium text-brand-brown-light">
           Name
         </label>
-        <input
-          name="name"
-          type="text"
-          list={nameListId}
-          required
-          autoComplete="off"
-          placeholder="e.g. Adobo"
-          value={fields.name}
-          onChange={(e) => handleNameChange(e.target.value)}
-          className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
-        />
-        <datalist id={nameListId}>
-          {items.map((item) => (
-            <option key={item.id} value={item.name} />
-          ))}
-        </datalist>
+        <div className="mt-1">
+          <Combobox
+            name="name"
+            required
+            placeholder="e.g. Adobo"
+            value={fields.name}
+            onChange={handleNameChange}
+            options={items.map((item) => item.name)}
+          />
+        </div>
       </div>
 
       <div>
         <label className="block text-xs font-medium text-brand-brown-light">
           Category
         </label>
-        <input
-          name="category"
-          type="text"
-          list={categoryListId}
-          autoComplete="off"
-          placeholder="Optional"
-          value={fields.category}
-          onChange={(e) => setFields({ ...fields, category: e.target.value })}
-          className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
-        />
-        <datalist id={categoryListId}>
-          {categories.map((category) => (
-            <option key={category} value={category} />
-          ))}
-        </datalist>
+        <div className="mt-1">
+          <Combobox
+            name="category"
+            placeholder="Optional"
+            value={fields.category}
+            onChange={(value) => setFields({ ...fields, category: value })}
+            options={categories}
+          />
+        </div>
       </div>
 
       <div>
