@@ -1,40 +1,15 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoney, toNumber } from "@/lib/money";
-import { toDateInputValue } from "@/lib/date";
+import {
+  toDateInputValue,
+  utcDateKey,
+  formatGroupDate,
+  formatRangeDate,
+} from "@/lib/date";
 import { createMarketCost, deleteMarketCost } from "@/app/actions/market-costs";
 
 const DEFAULT_RANGE_DAYS = 30;
-
-// MarketCost `date` values are date-only inputs, stored as UTC midnight
-// (`new Date("YYYY-MM-DD")` parses as UTC). Range math/grouping/formatting
-// must stay in UTC too, or entries drift to the wrong day for any server
-// timezone ahead of UTC.
-function utcDateKey(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function formatGroupDate(date: Date) {
-  const weekday = date.toLocaleDateString("en-US", {
-    weekday: "long",
-    timeZone: "UTC",
-  });
-  const monthDay = date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    timeZone: "UTC",
-  });
-  return `${monthDay} — ${weekday}`;
-}
-
-function formatRangeDate(date: Date) {
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
 
 export default async function MarketCostsPage({
   searchParams,

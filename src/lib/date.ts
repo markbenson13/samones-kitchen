@@ -6,3 +6,33 @@ export function toDateInputValue(date: Date): string {
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+
+// Sale/MarketCost `date` values are date-only inputs, stored as UTC midnight
+// (`new Date("YYYY-MM-DD")` parses as UTC). Range math/grouping/formatting
+// must stay in UTC too, or entries drift to the wrong day for any server
+// timezone ahead of UTC.
+export function utcDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+export function formatGroupDate(date: Date): string {
+  const weekday = date.toLocaleDateString("en-US", {
+    weekday: "long",
+    timeZone: "UTC",
+  });
+  const monthDay = date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+  return `${monthDay} — ${weekday}`;
+}
+
+export function formatRangeDate(date: Date): string {
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}

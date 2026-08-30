@@ -1,27 +1,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoney, toNumber } from "@/lib/money";
+import { utcDateKey, formatRangeDate } from "@/lib/date";
 import { IncomeChart } from "./income-chart";
 
 const DEFAULT_RANGE_DAYS = 30;
 const MAX_CHART_DAYS = 366;
-
-// Sale/MarketCost `date` values are date-only inputs, stored as UTC midnight
-// (`new Date("YYYY-MM-DD")` parses as UTC). Range math/bucketing must stay in
-// UTC too, or day boundaries drift by one for any server timezone ahead of
-// UTC.
-function utcDateKey(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function formatRangeDate(date: Date) {
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
 
 export default async function DashboardPage({
   searchParams,

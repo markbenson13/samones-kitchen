@@ -15,6 +15,7 @@ export async function createSale(formData: FormData) {
   const foodItemId = String(formData.get("foodItemId") ?? "");
   const quantity = Number(formData.get("quantity"));
   const leftover = Number(formData.get("leftover") ?? 0);
+  const unitPriceInput = String(formData.get("unitPrice") ?? "").trim();
   const dateStr = String(formData.get("date") ?? "");
 
   if (!foodItemId) throw new Error("Food item is required");
@@ -28,7 +29,17 @@ export async function createSale(formData: FormData) {
   });
   if (!foodItem) throw new Error("Food item not found");
 
-  const unitPrice = foodItem.sellingPrice;
+  // Defaults to the food item's current selling price, but the form allows
+  // overriding it (e.g. a discounted clearance sale) instead of requiring a
+  // separate duplicate food item per price variant.
+  let unitPrice: number | typeof foodItem.sellingPrice = foodItem.sellingPrice;
+  if (unitPriceInput) {
+    const override = Number(unitPriceInput);
+    if (!Number.isFinite(override) || override < 0)
+      throw new Error("Invalid unit price");
+    unitPrice = override;
+  }
+
   const totalAmount = Number(unitPrice) * quantity;
   const date = dateStr ? new Date(dateStr) : new Date();
 
