@@ -1,14 +1,7 @@
 import Image from "next/image";
-import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { signOutAction } from "@/app/actions/auth";
-
-const NAV_LINKS = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/food-items", label: "Food Items" },
-  { href: "/market-costs", label: "Market Costs" },
-  { href: "/sales", label: "Sales" },
-];
+import { NavLinks } from "./nav-links";
 
 export default async function AdminLayout({
   children,
@@ -37,17 +30,7 @@ export default async function AdminLayout({
             </div>
           </div>
 
-          <nav className="flex flex-wrap gap-1">
-            {NAV_LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-brand-brown-light hover:bg-brand-cream hover:text-brand-red"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
+          <NavLinks />
 
           <div className="flex items-center gap-3">
             <span className="text-sm text-brand-brown-light">
