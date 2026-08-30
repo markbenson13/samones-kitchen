@@ -2,6 +2,7 @@ import Image from "next/image";
 import { auth } from "@/lib/auth";
 import { signOutAction } from "@/app/actions/auth";
 import { NavLinks } from "./nav-links";
+import { UserMenu } from "./user-menu";
 
 export default async function AdminLayout({
   children,
@@ -22,29 +23,18 @@ export default async function AdminLayout({
               height={40}
               className="h-10 w-10 object-contain"
             />
-            <div>
-              <p className="text-lg font-semibold text-brand-brown">
-                Samone&apos;s Kitchen
-              </p>
-              <p className="text-xs text-brand-brown-light">Admin</p>
-            </div>
+            <p className="text-lg font-semibold text-brand-brown">
+              Samone&apos;s Kitchen
+            </p>
           </div>
 
           <NavLinks />
 
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-brand-brown-light">
-              {session?.user?.email}
-            </span>
-            <form action={signOutAction}>
-              <button
-                type="submit"
-                className="rounded-md border border-brand-tan px-3 py-1.5 text-sm font-medium text-brand-brown hover:bg-brand-cream"
-              >
-                Sign out
-              </button>
-            </form>
-          </div>
+          <UserMenu
+            name={session?.user?.name ?? "Admin"}
+            email={session?.user?.email}
+            signOutAction={signOutAction}
+          />
         </div>
       </header>
 
