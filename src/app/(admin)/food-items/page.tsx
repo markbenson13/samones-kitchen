@@ -14,22 +14,22 @@ export default async function FoodItemsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold text-neutral-900">
+        <h1 className="text-2xl font-semibold text-brand-brown">
           Food Items
         </h1>
-        <p className="mt-1 text-sm text-neutral-500">
+        <p className="mt-1 text-sm text-brand-brown-light">
           Set the cost and selling price for each ulam you sell.
         </p>
       </div>
 
-      <section className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-medium text-neutral-900">Add food item</h2>
+      <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-medium text-brand-brown">Add food item</h2>
         <form
           action={createFoodItem}
           className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
         >
           <div className="lg:col-span-2">
-            <label className="block text-xs font-medium text-neutral-600">
+            <label className="block text-xs font-medium text-brand-brown-light">
               Name
             </label>
             <input
@@ -37,22 +37,22 @@ export default async function FoodItemsPage() {
               type="text"
               required
               placeholder="e.g. Adobo"
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-neutral-600">
+            <label className="block text-xs font-medium text-brand-brown-light">
               Category
             </label>
             <input
               name="category"
               type="text"
               placeholder="Optional"
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-neutral-600">
+            <label className="block text-xs font-medium text-brand-brown-light">
               Cost price
             </label>
             <input
@@ -61,11 +61,11 @@ export default async function FoodItemsPage() {
               step="0.01"
               min="0"
               required
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-neutral-600">
+            <label className="block text-xs font-medium text-brand-brown-light">
               Selling price
             </label>
             <input
@@ -74,13 +74,13 @@ export default async function FoodItemsPage() {
               step="0.01"
               min="0"
               required
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
             />
           </div>
           <div className="flex items-end lg:col-span-5">
             <button
               type="submit"
-              className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+              className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
             >
               Add item
             </button>
@@ -88,9 +88,9 @@ export default async function FoodItemsPage() {
         </form>
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-xl border border-brand-tan bg-white shadow-sm">
         <table className="w-full text-left text-sm">
-          <thead className="bg-neutral-50 text-xs uppercase text-neutral-500">
+          <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
             <tr>
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Category</th>
@@ -101,17 +101,17 @@ export default async function FoodItemsPage() {
               <th className="px-4 py-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-100">
+          <tbody className="divide-y divide-brand-tan/60">
             {foodItems.map((item) => {
               const cost = toNumber(item.costPrice.toString());
               const selling = toNumber(item.sellingPrice.toString());
               const margin = selling - cost;
               return (
                 <tr key={item.id}>
-                  <td className="px-4 py-3 font-medium text-neutral-900">
+                  <td className="px-4 py-3 font-medium text-brand-brown">
                     {item.name}
                   </td>
-                  <td className="px-4 py-3 text-neutral-500">
+                  <td className="px-4 py-3 text-brand-brown-light">
                     {item.category ?? "—"}
                   </td>
                   <td className="px-4 py-3">{formatMoney(cost)}</td>
@@ -160,7 +160,7 @@ export default async function FoodItemsPage() {
               <tr>
                 <td
                   colSpan={7}
-                  className="px-4 py-6 text-center text-sm text-neutral-500"
+                  className="px-4 py-6 text-center text-sm text-brand-brown-light"
                 >
                   No food items yet.
                 </td>

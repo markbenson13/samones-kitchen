@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Samone Kitchen — Admin",
-  description: "Track market costs, food pricing, and income for Samone Kitchen.",
+  title: "Samone's Kitchen — Admin",
+  description: "Track market costs, food pricing, and income for Samone's Kitchen.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

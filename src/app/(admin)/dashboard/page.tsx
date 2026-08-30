@@ -68,8 +68,8 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold text-neutral-900">Dashboard</h1>
-        <p className="mt-1 text-sm text-neutral-500">
+        <h1 className="text-2xl font-semibold text-brand-brown">Dashboard</h1>
+        <p className="mt-1 text-sm text-brand-brown-light">
           All-time totals and the last {CHART_DAYS} days of activity.
         </p>
       </div>
@@ -84,8 +84,8 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <section className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-medium text-neutral-900">
+      <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-medium text-brand-brown">
           Last {CHART_DAYS} days
         </h2>
         <div className="mt-4 h-72">
@@ -110,11 +110,11 @@ function StatCard({
       ? "text-emerald-600"
       : tone === "negative"
         ? "text-red-600"
-        : "text-neutral-900";
+        : "text-brand-brown";
 
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
-      <p className="text-xs font-medium uppercase text-neutral-500">
+    <div className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
+      <p className="text-xs font-medium uppercase text-brand-brown-light">
         {label}
       </p>
       <p className={`mt-2 text-2xl font-semibold ${toneClass}`}>{value}</p>

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { signOutAction } from "@/app/actions/auth";
@@ -18,13 +19,22 @@ export default async function AdminLayout({
 
   return (
     <div className="flex flex-1 flex-col bg-neutral-50">
-      <header className="border-b border-neutral-200 bg-white">
+      <header className="border-b border-brand-tan bg-white">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-4">
-          <div>
-            <p className="text-lg font-semibold text-neutral-900">
-              Samone Kitchen
-            </p>
-            <p className="text-xs text-neutral-500">Admin</p>
+          <div className="flex items-center gap-3">
+            <Image
+              src="/logo.png"
+              alt="Samone's Kitchen"
+              width={40}
+              height={40}
+              className="h-10 w-10 object-contain"
+            />
+            <div>
+              <p className="text-lg font-semibold text-brand-brown">
+                Samone&apos;s Kitchen
+              </p>
+              <p className="text-xs text-brand-brown-light">Admin</p>
+            </div>
           </div>
 
           <nav className="flex flex-wrap gap-1">
@@ -32,7 +42,7 @@ export default async function AdminLayout({
               <Link
                 key={link.href}
                 href={link.href}
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+                className="rounded-md px-3 py-1.5 text-sm font-medium text-brand-brown-light hover:bg-brand-cream hover:text-brand-red"
               >
                 {link.label}
               </Link>
@@ -40,13 +50,13 @@ export default async function AdminLayout({
           </nav>
 
           <div className="flex items-center gap-3">
-            <span className="text-sm text-neutral-500">
+            <span className="text-sm text-brand-brown-light">
               {session?.user?.email}
             </span>
             <form action={signOutAction}>
               <button
                 type="submit"
-                className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+                className="rounded-md border border-brand-tan px-3 py-1.5 text-sm font-medium text-brand-brown hover:bg-brand-cream"
               >
                 Sign out
               </button>

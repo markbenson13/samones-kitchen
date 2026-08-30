@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { loginAction } from "./actions";
 
 export default async function LoginPage({
@@ -9,17 +10,27 @@ export default async function LoginPage({
 
   return (
     <main className="flex flex-1 items-center justify-center bg-neutral-50 px-4">
-      <div className="w-full max-w-sm rounded-xl border border-neutral-200 bg-white p-8 shadow-sm">
-        <h1 className="text-xl font-semibold text-neutral-900">
-          Samone Kitchen
-        </h1>
-        <p className="mt-1 text-sm text-neutral-500">Admin sign in</p>
+      <div className="w-full max-w-sm rounded-xl border border-brand-tan bg-white p-8 shadow-sm">
+        <div className="flex flex-col items-center text-center">
+          <Image
+            src="/logo.png"
+            alt="Samone's Kitchen"
+            width={80}
+            height={80}
+            className="h-20 w-20 object-contain"
+            priority
+          />
+          <h1 className="mt-2 text-xl font-semibold text-brand-brown">
+            Samone&apos;s Kitchen
+          </h1>
+          <p className="mt-1 text-sm text-brand-brown-light">Admin sign in</p>
+        </div>
 
         <form action={loginAction} className="mt-6 space-y-4">
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-neutral-700"
+              className="block text-sm font-medium text-brand-brown"
             >
               Email
             </label>
@@ -29,14 +40,14 @@ export default async function LoginPage({
               type="email"
               required
               autoComplete="email"
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
+              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm focus:border-brand-red focus:outline-none"
             />
           </div>
 
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-neutral-700"
+              className="block text-sm font-medium text-brand-brown"
             >
               Password
             </label>
@@ -46,7 +57,7 @@ export default async function LoginPage({
               type="password"
               required
               autoComplete="current-password"
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
+              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm focus:border-brand-red focus:outline-none"
             />
           </div>
 
@@ -58,7 +69,7 @@ export default async function LoginPage({
 
           <button
             type="submit"
-            className="w-full rounded-md bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+            className="w-full rounded-md bg-brand-red px-3 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
           >
             Sign in
           </button>
