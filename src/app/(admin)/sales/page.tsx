@@ -24,16 +24,16 @@ export default async function SalesPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold text-neutral-900">Sales</h1>
-        <p className="mt-1 text-sm text-neutral-500">
+        <h1 className="text-2xl font-semibold text-brand-brown">Sales</h1>
+        <p className="mt-1 text-sm text-brand-brown-light">
           Record each sale using the current selling price of a food item.
         </p>
       </div>
 
-      <section className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-medium text-neutral-900">Record sale</h2>
+      <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-medium text-brand-brown">Record sale</h2>
         {foodItems.length === 0 ? (
-          <p className="mt-4 text-sm text-neutral-500">
+          <p className="mt-4 text-sm text-brand-brown-light">
             Add an active food item first before recording a sale.
           </p>
         ) : (
@@ -42,13 +42,13 @@ export default async function SalesPage() {
             className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
           >
             <div className="lg:col-span-2">
-              <label className="block text-xs font-medium text-neutral-600">
+              <label className="block text-xs font-medium text-brand-brown-light">
                 Food item
               </label>
               <select
                 name="foodItemId"
                 required
-                className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
               >
                 {foodItems.map((item) => (
                   <option key={item.id} value={item.id}>
@@ -58,7 +58,7 @@ export default async function SalesPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-neutral-600">
+              <label className="block text-xs font-medium text-brand-brown-light">
                 Quantity
               </label>
               <input
@@ -68,24 +68,37 @@ export default async function SalesPage() {
                 min="1"
                 defaultValue={1}
                 required
-                className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-neutral-600">
+              <label className="block text-xs font-medium text-brand-brown-light">
+                Leftover
+              </label>
+              <input
+                name="leftover"
+                type="number"
+                step="1"
+                min="0"
+                defaultValue={0}
+                className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-brown-light">
                 Date
               </label>
               <input
                 name="date"
                 type="date"
                 defaultValue={toDateInputValue(new Date())}
-                className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
               />
             </div>
             <div className="flex items-end lg:col-span-4">
               <button
                 type="submit"
-                className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+                className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
               >
                 Record sale
               </button>
@@ -94,28 +107,32 @@ export default async function SalesPage() {
         )}
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-xl border border-brand-tan bg-white shadow-sm">
         <table className="w-full text-left text-sm">
-          <thead className="bg-neutral-50 text-xs uppercase text-neutral-500">
+          <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
             <tr>
               <th className="px-4 py-3">Date</th>
               <th className="px-4 py-3">Food item</th>
               <th className="px-4 py-3">Qty</th>
+              <th className="px-4 py-3">Leftover</th>
               <th className="px-4 py-3">Unit price</th>
               <th className="px-4 py-3">Total</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-100">
+          <tbody className="divide-y divide-brand-tan/60">
             {sales.map((sale) => (
               <tr key={sale.id}>
-                <td className="px-4 py-3 text-neutral-500">
+                <td className="px-4 py-3 text-brand-brown-light">
                   {sale.date.toLocaleDateString()}
                 </td>
-                <td className="px-4 py-3 font-medium text-neutral-900">
+                <td className="px-4 py-3 font-medium text-brand-brown">
                   {sale.foodItem.name}
                 </td>
                 <td className="px-4 py-3">{sale.quantity}</td>
+                <td className="px-4 py-3 text-brand-brown-light">
+                  {sale.leftover}
+                </td>
                 <td className="px-4 py-3">
                   {formatMoney(sale.unitPrice.toString())}
                 </td>
@@ -137,8 +154,8 @@ export default async function SalesPage() {
             {sales.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
-                  className="px-4 py-6 text-center text-sm text-neutral-500"
+                  colSpan={7}
+                  className="px-4 py-6 text-center text-sm text-brand-brown-light"
                 >
                   No sales recorded yet.
                 </td>
@@ -146,12 +163,12 @@ export default async function SalesPage() {
             )}
           </tbody>
           {sales.length > 0 && (
-            <tfoot className="border-t border-neutral-200 bg-neutral-50">
+            <tfoot className="border-t border-brand-tan bg-brand-cream">
               <tr>
-                <td className="px-4 py-3 font-medium text-neutral-900" colSpan={4}>
+                <td className="px-4 py-3 font-medium text-brand-brown" colSpan={5}>
                   Total (last {sales.length})
                 </td>
-                <td className="px-4 py-3 font-semibold text-neutral-900">
+                <td className="px-4 py-3 font-semibold text-brand-brown">
                   {formatMoney(total)}
                 </td>
                 <td />

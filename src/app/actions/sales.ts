@@ -14,11 +14,14 @@ export async function createSale(formData: FormData) {
 
   const foodItemId = String(formData.get("foodItemId") ?? "");
   const quantity = Number(formData.get("quantity"));
+  const leftover = Number(formData.get("leftover") ?? 0);
   const dateStr = String(formData.get("date") ?? "");
 
   if (!foodItemId) throw new Error("Food item is required");
   if (!Number.isInteger(quantity) || quantity <= 0)
     throw new Error("Invalid quantity");
+  if (!Number.isInteger(leftover) || leftover < 0)
+    throw new Error("Invalid leftover");
 
   const foodItem = await prisma.foodItem.findUnique({
     where: { id: foodItemId },
@@ -30,7 +33,7 @@ export async function createSale(formData: FormData) {
   const date = dateStr ? new Date(dateStr) : new Date();
 
   await prisma.sale.create({
-    data: { foodItemId, quantity, unitPrice, totalAmount, date },
+    data: { foodItemId, quantity, leftover, unitPrice, totalAmount, date },
   });
 
   revalidatePath("/sales");

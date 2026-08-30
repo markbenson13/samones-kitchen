@@ -31,6 +31,7 @@ model Sale {
   id          String   @id @default(cuid())
   date        DateTime @default(now())
   quantity    Int
+  leftover    Int      @default(0)
   unitPrice   Decimal  @db.Decimal(10, 2)
   totalAmount Decimal  @db.Decimal(10, 2)
   createdAt   DateTime @default(now())
