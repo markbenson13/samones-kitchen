@@ -8,6 +8,7 @@ const NAV_LINKS = [
   { href: "/food-items", label: "Food Items" },
   { href: "/market-costs", label: "Market Costs" },
   { href: "/sales", label: "Sales" },
+  { href: "/orders", label: "Orders" },
 ];
 
 export function NavLinks() {

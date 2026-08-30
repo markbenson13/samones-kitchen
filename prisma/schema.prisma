@@ -16,7 +16,8 @@ model FoodItem {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  sales Sale[]
+  sales  Sale[]
+  orders Order[]
 }
 
 model MarketCost {
@@ -36,6 +37,20 @@ model Sale {
   unitPrice   Decimal  @db.Decimal(10, 2)
   totalAmount Decimal  @db.Decimal(10, 2)
   createdAt   DateTime @default(now())
+
+  foodItemId String
+  foodItem   FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Restrict)
+}
+
+model Order {
+  id             String   @id @default(cuid())
+  date           DateTime @default(now())
+  customerName   String
+  quantity       Int
+  paymentStatus  String   @default("Unpaid")
+  deliveryStatus String   @default("Pending")
+  paymentMode    String
+  createdAt      DateTime @default(now())
 
   foodItemId String
   foodItem   FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Restrict)
