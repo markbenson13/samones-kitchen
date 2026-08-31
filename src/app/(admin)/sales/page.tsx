@@ -2,36 +2,66 @@ import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/money";
 import { toDateInputValue, utcDateKey, formatGroupDate } from "@/lib/date";
 import { getDailyMenuByDate } from "@/lib/daily-menu";
-import { createSale, deleteSale } from "@/app/actions/sales";
-import { SaleForm } from "./sale-form";
-import { SalesTable } from "./sales-table";
+import { upsertSale, deleteSale, deleteSales } from "@/app/actions/sales";
+import { SalesSection } from "./sales-section";
+import { Pagination } from "@/components/pagination";
 
-export default async function SalesPage() {
-  const [sales, foodItems, leftoverAgg, orderedAgg, menuByDate] =
-    await Promise.all([
-      prisma.sale.findMany({
-        orderBy: { date: "desc" },
-        include: { foodItem: true },
-        take: 100,
-      }),
-      prisma.foodItem.findMany({
-        where: { isActive: true },
-        orderBy: { name: "asc" },
-      }),
-      prisma.sale.aggregate({ _sum: { leftover: true } }),
-      prisma.order.aggregate({ _sum: { quantity: true } }),
-      getDailyMenuByDate(),
-    ]);
+const PAGE_SIZE = 25;
+
+export default async function SalesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
+
+  const [sales, salesCount, foodItems, orders, menuByDate] = await Promise.all([
+    prisma.sale.findMany({
+      orderBy: { date: "desc" },
+      include: { foodItem: true },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+    }),
+    prisma.sale.count(),
+    prisma.foodItem.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.order.findMany({ select: { foodItemId: true, date: true, quantity: true } }),
+    getDailyMenuByDate(),
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(salesCount / PAGE_SIZE));
+
+  // Leftover/Total are derived live from whatever's currently ordered for a
+  // food item on a date, rather than a stored sold-quantity snapshot — so
+  // they stay accurate even if orders are added/removed after the sale was
+  // recorded.
+  const orderedByItemAndDay = new Map<string, number>();
+  for (const order of orders) {
+    const key = `${order.foodItemId}::${utcDateKey(order.date)}`;
+    orderedByItemAndDay.set(
+      key,
+      (orderedByItemAndDay.get(key) ?? 0) + order.quantity
+    );
+  }
+
+  function computeLeftoverAndTotal(sale: (typeof sales)[number]) {
+    const ordered =
+      orderedByItemAndDay.get(
+        `${sale.foodItemId}::${utcDateKey(sale.date)}`
+      ) ?? 0;
+    const leftover = sale.quantityMade - ordered;
+    const totalAmount =
+      (sale.quantityMade - leftover) * toNumber(sale.unitPrice.toString());
+    return { leftover, totalAmount };
+  }
 
   const total = sales.reduce(
-    (sum, sale) => sum + toNumber(sale.totalAmount.toString()),
+    (sum, sale) => sum + computeLeftoverAndTotal(sale).totalAmount,
     0
   );
-
-  // Orders claim stock from what's recorded as leftover, so total leftover
-  // is what's left over from sales minus everything ordered against it.
-  const totalLeftover =
-    (leftoverAgg._sum.leftover ?? 0) - (orderedAgg._sum.quantity ?? 0);
 
   const groups: {
     key: string;
@@ -41,7 +71,7 @@ export default async function SalesPage() {
   }[] = [];
   for (const sale of sales) {
     const key = utcDateKey(sale.date);
-    const amount = toNumber(sale.totalAmount.toString());
+    const amount = computeLeftoverAndTotal(sale).totalAmount;
     const currentGroup = groups[groups.length - 1];
     if (currentGroup && currentGroup.key === key) {
       currentGroup.items.push(sale);
@@ -65,70 +95,44 @@ export default async function SalesPage() {
         </p>
       </div>
 
-      <div className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
-        <p className="text-xs font-medium uppercase text-brand-brown-light">
-          Total Leftover
-        </p>
-        <p className="mt-2 text-2xl font-semibold text-brand-brown">
-          {totalLeftover}
-        </p>
-        <p className="mt-1 text-xs text-brand-brown-light">
-          Leftover recorded on sales, minus everything claimed via orders.
-        </p>
-      </div>
-
-      <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-medium text-brand-brown">Record sale</h2>
-        {foodItems.length === 0 ? (
-          <p className="mt-4 text-sm text-brand-brown-light">
-            Add an active food item first before recording a sale.
-          </p>
-        ) : (
-          <>
-            <p className="mt-1 text-xs text-brand-brown-light">
-              Unit price defaults to the item&apos;s current selling price —
-              lower it to record a clearance/discounted sale instead of
-              creating a duplicate food item.
-            </p>
-            <SaleForm
-              action={createSale}
-              menuByDate={menuByDate}
-              allFoodItems={foodItems.map((item) => ({
-                id: item.id,
-                name: item.name,
-                sellingPrice: item.sellingPrice.toString(),
-              }))}
-              defaultDate={toDateInputValue(new Date())}
-            />
-          </>
-        )}
-      </section>
-
-      <section className="overflow-hidden rounded-xl border border-brand-tan bg-white shadow-sm">
-        {groups.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-brand-brown-light">
-            No sales recorded yet.
-          </p>
-        ) : (
-          <SalesTable
-            groups={groups.map((group) => ({
-              ...group,
-              items: group.items.map((sale) => ({
-                id: sale.id,
-                quantity: sale.quantity,
-                leftover: sale.leftover,
-                unitPrice: sale.unitPrice.toString(),
-                totalAmount: sale.totalAmount.toString(),
-                foodItemName: sale.foodItem.name,
-                foodItemSellingPrice: sale.foodItem.sellingPrice.toString(),
-              })),
-            }))}
-            deleteAction={deleteSale}
-            totalLabel={`Total (last ${sales.length})`}
-            total={total}
+      <SalesSection
+        action={upsertSale}
+        menuByDate={menuByDate}
+        allFoodItems={foodItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          sellingPrice: item.sellingPrice.toString(),
+        }))}
+        defaultDate={toDateInputValue(new Date())}
+        groups={groups.map((group) => ({
+          ...group,
+          items: group.items.map((sale) => {
+            const { leftover, totalAmount } = computeLeftoverAndTotal(sale);
+            return {
+              id: sale.id,
+              foodItemId: sale.foodItemId,
+              quantityMade: sale.quantityMade,
+              leftover,
+              unitPrice: sale.unitPrice.toString(),
+              totalAmount: totalAmount.toString(),
+              foodItemName: sale.foodItem.name,
+              foodItemSellingPrice: sale.foodItem.sellingPrice.toString(),
+              date: utcDateKey(sale.date),
+            };
+          }),
+        }))}
+        deleteAction={deleteSale}
+        bulkDeleteAction={deleteSales}
+        totalLabel={`Total (page ${page} of ${totalPages})`}
+        total={total}
+        pagination={
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            buildHref={(p) => `/sales?page=${p}`}
           />
-        )}
-      </section>
+        }
+      />
     </div>
   );
 }

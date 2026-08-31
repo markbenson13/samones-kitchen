@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { formatMoney, toNumber } from "@/lib/money";
-import { SubmitButton } from "@/components/submit-button";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { BulkDeleteBar } from "@/components/bulk-delete-bar";
 import { CollapsibleGroup } from "@/components/collapsible-group";
 import {
   SortableHeader,
@@ -13,12 +14,14 @@ import {
 
 type SaleRow = {
   id: string;
-  quantity: number;
+  foodItemId: string;
+  quantityMade: number;
   leftover: number;
   unitPrice: string;
   totalAmount: string;
   foodItemName: string;
   foodItemSellingPrice: string;
+  date: string;
 };
 
 type Group = {
@@ -28,7 +31,12 @@ type Group = {
   subtotal: number;
 };
 
-type SortKey = "foodItem" | "quantity" | "leftover" | "unitPrice" | "total";
+type SortKey =
+  | "foodItem"
+  | "quantityMade"
+  | "leftover"
+  | "unitPrice"
+  | "total";
 
 function sortItems(items: SaleRow[], sort: SortState<SortKey>) {
   if (!sort) return items;
@@ -44,8 +52,8 @@ function sortItems(items: SaleRow[], sort: SortState<SortKey>) {
             b.foodItemName.toLowerCase()
           )
         );
-      case "quantity":
-        return sign * compareValues(a.quantity, b.quantity);
+      case "quantityMade":
+        return sign * compareValues(a.quantityMade, b.quantityMade);
       case "leftover":
         return sign * compareValues(a.leftover, b.leftover);
       case "unitPrice":
@@ -61,25 +69,65 @@ function sortItems(items: SaleRow[], sort: SortState<SortKey>) {
 export function SalesTable({
   groups,
   deleteAction,
+  bulkDeleteAction,
+  onEdit,
   totalLabel,
   total,
 }: {
   groups: Group[];
   deleteAction: (id: string) => void | Promise<void>;
+  bulkDeleteAction: (ids: string[]) => void | Promise<void>;
+  onEdit: (sale: SaleRow) => void;
   totalLabel: string;
   total: number;
 }) {
   const [sort, setSort] = useState<SortState<SortKey>>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const sortedGroups = useMemo(
     () => groups.map((group) => ({ ...group, items: sortItems(group.items, sort) })),
     [groups, sort]
   );
 
+  const allIds = useMemo(
+    () => sortedGroups.flatMap((group) => group.items.map((item) => item.id)),
+    [sortedGroups]
+  );
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected((prev) =>
+      prev.size === allIds.length ? new Set() : new Set(allIds)
+    );
+  }
+
+  async function handleBulkDelete() {
+    await bulkDeleteAction(Array.from(selected));
+    setSelected(new Set());
+  }
+
   return (
-    <table className="w-full text-left text-sm">
+    <>
+      <BulkDeleteBar count={selected.size} action={handleBulkDelete} />
+      <table className="w-full text-left text-sm">
       <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
         <tr>
+          <th className="px-4 py-3">
+            <input
+              type="checkbox"
+              checked={allIds.length > 0 && selected.size === allIds.length}
+              onChange={toggleAll}
+              className="h-4 w-4 rounded border-brand-tan text-brand-red focus:ring-brand-red"
+            />
+          </th>
           <SortableHeader
             label="Food item"
             sortKey="foodItem"
@@ -87,8 +135,8 @@ export function SalesTable({
             onSort={(key) => setSort(nextSortState(sort, key))}
           />
           <SortableHeader
-            label="Qty"
-            sortKey="quantity"
+            label="Made"
+            sortKey="quantityMade"
             currentSort={sort}
             onSort={(key) => setSort(nextSortState(sort, key))}
           />
@@ -117,7 +165,7 @@ export function SalesTable({
         <CollapsibleGroup
           key={group.key}
           label={group.label}
-          labelColSpan={4}
+          labelColSpan={5}
           subtotal={formatMoney(group.subtotal)}
           trailingColSpan={1}
         >
@@ -125,6 +173,14 @@ export function SalesTable({
             const isSale = toNumber(sale.unitPrice) < toNumber(sale.foodItemSellingPrice);
             return (
               <tr key={sale.id}>
+                <td className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(sale.id)}
+                    onChange={() => toggleOne(sale.id)}
+                    className="h-4 w-4 rounded border-brand-tan text-brand-red focus:ring-brand-red"
+                  />
+                </td>
                 <td className="px-4 py-3 font-medium text-brand-brown">
                   {sale.foodItemName}
                   {isSale && (
@@ -133,21 +189,40 @@ export function SalesTable({
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-3">{sale.quantity}</td>
                 <td className="px-4 py-3 text-brand-brown-light">
+                  {sale.quantityMade}
+                </td>
+                <td
+                  className={`px-4 py-3 ${
+                    sale.leftover < 0 ? "text-red-600" : "text-brand-brown-light"
+                  }`}
+                >
                   {sale.leftover}
                 </td>
                 <td className="px-4 py-3">{formatMoney(sale.unitPrice)}</td>
                 <td className="px-4 py-3">{formatMoney(sale.totalAmount)}</td>
                 <td className="px-4 py-3 text-right">
-                  <form action={deleteAction.bind(null, sale.id)}>
-                    <SubmitButton
-                      spinnerClassName="h-3 w-3"
-                      className="text-xs font-medium text-red-600 hover:underline"
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => onEdit(sale)}
+                      className="text-xs font-medium text-brand-brown hover:underline"
                     >
-                      Delete
-                    </SubmitButton>
-                  </form>
+                      Edit
+                    </button>
+                    <form action={deleteAction.bind(null, sale.id)}>
+                      <ConfirmSubmitButton
+                        spinnerClassName="h-3 w-3"
+                        confirmTitle="Delete this sale?"
+                        confirmMessage={`This will permanently delete the sale record for "${sale.foodItemName}". This cannot be undone.`}
+                        confirmLabel="Delete"
+                        danger
+                        className="text-xs font-medium text-red-600 hover:underline"
+                      >
+                        Delete
+                      </ConfirmSubmitButton>
+                    </form>
+                  </div>
                 </td>
               </tr>
             );
@@ -156,7 +231,7 @@ export function SalesTable({
       ))}
       <tfoot className="border-t-2 border-brand-tan bg-brand-cream">
         <tr>
-          <td className="px-4 py-3 font-medium text-brand-brown" colSpan={4}>
+          <td className="px-4 py-3 font-medium text-brand-brown" colSpan={5}>
             {totalLabel}
           </td>
           <td className="px-4 py-3 font-semibold text-brand-brown">
@@ -165,6 +240,7 @@ export function SalesTable({
           <td />
         </tr>
       </tfoot>
-    </table>
+      </table>
+    </>
   );
 }
