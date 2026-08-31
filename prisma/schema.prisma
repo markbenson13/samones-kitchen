@@ -75,6 +75,12 @@ model Order {
   paymentMode    String
   createdAt      DateTime @default(now())
 
+  // Shared by every item a customer ordered in one submission, so payment/
+  // delivery/mode can be toggled for the whole order at once. Null on rows
+  // created before this field existed — those are treated as their own
+  // singleton group (keyed by their own id) wherever grouping happens.
+  orderGroupId String?
+
   foodItemId String
   foodItem   FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Restrict)
 }

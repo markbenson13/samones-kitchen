@@ -9,14 +9,14 @@ import {
 } from "@/app/actions/orders";
 import { addToDailyMenu, removeFromDailyMenu } from "@/app/actions/daily-menu";
 import { OrdersDayPanel } from "./orders-day-panel";
-import { PaymentModeSelect } from "./payment-mode-select";
-import { CollapsibleGroup } from "@/components/collapsible-group";
-import { SubmitButton } from "@/components/submit-button";
+import { OrdersTable } from "./orders-table";
 
 export default async function OrdersPage() {
   const [orders, foodItems, dailyMenuEntries] = await Promise.all([
     prisma.order.findMany({
-      orderBy: { date: "desc" },
+      // Secondary sort by orderGroupId so every row sharing one guarantees
+      // to land contiguously — required for batchesFor() below.
+      orderBy: [{ date: "desc" }, { orderGroupId: "desc" }],
       include: { foodItem: true },
       take: 100,
     }),
@@ -47,26 +47,49 @@ export default async function OrdersPage() {
     });
   }
 
+  // Within a day, an order placed as multiple items shares one orderGroupId
+  // (older rows have none, so they're their own singleton "batch") — so
+  // payment/delivery/mode can be shown and toggled once for the whole order.
   const groups: {
     key: string;
     label: string;
-    items: typeof orders;
     subtotal: number;
+    batches: {
+      key: string;
+      customerName: string;
+      paymentStatus: string;
+      deliveryStatus: string;
+      paymentMode: string;
+      items: { id: string; foodItemName: string; quantity: number }[];
+    }[];
   }[] = [];
   for (const order of orders) {
-    const key = utcDateKey(order.date);
-    const currentGroup = groups[groups.length - 1];
-    if (currentGroup && currentGroup.key === key) {
-      currentGroup.items.push(order);
-      currentGroup.subtotal += order.quantity;
-    } else {
-      groups.push({
-        key,
-        label: formatGroupDate(order.date),
-        items: [order],
-        subtotal: order.quantity,
-      });
+    const dayKey = utcDateKey(order.date);
+    let group = groups[groups.length - 1];
+    if (!group || group.key !== dayKey) {
+      group = { key: dayKey, label: formatGroupDate(order.date), subtotal: 0, batches: [] };
+      groups.push(group);
     }
+    group.subtotal += order.quantity;
+
+    const batchKey = order.orderGroupId ?? order.id;
+    let batch = group.batches[group.batches.length - 1];
+    if (!batch || batch.key !== batchKey) {
+      batch = {
+        key: batchKey,
+        customerName: order.customerName,
+        paymentStatus: order.paymentStatus,
+        deliveryStatus: order.deliveryStatus,
+        paymentMode: order.paymentMode,
+        items: [],
+      };
+      group.batches.push(batch);
+    }
+    batch.items.push({
+      id: order.id,
+      foodItemName: order.foodItem.name,
+      quantity: order.quantity,
+    });
   }
 
   return (
@@ -98,98 +121,13 @@ export default async function OrdersPage() {
             No orders recorded yet.
           </p>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
-              <tr>
-                <th className="px-4 py-3">Customer / unit</th>
-                <th className="px-4 py-3">Order</th>
-                <th className="px-4 py-3">Qty</th>
-                <th className="px-4 py-3">Payment</th>
-                <th className="px-4 py-3">Delivery</th>
-                <th className="px-4 py-3">Mode</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            {groups.map((group) => (
-              <CollapsibleGroup
-                key={group.key}
-                label={group.label}
-                labelColSpan={2}
-                subtotal={group.subtotal}
-                trailingColSpan={4}
-              >
-                {group.items.map((order) => (
-                  <tr key={order.id}>
-                    <td className="px-4 py-3 font-medium text-brand-brown">
-                      {order.customerName}
-                    </td>
-                    <td className="px-4 py-3 text-brand-brown-light">
-                      {order.foodItem.name}
-                    </td>
-                    <td className="px-4 py-3">{order.quantity}</td>
-                    <td className="px-4 py-3">
-                      <form
-                        action={toggleOrderPaymentStatus.bind(
-                          null,
-                          order.id,
-                          order.paymentStatus === "Paid" ? "Unpaid" : "Paid"
-                        )}
-                      >
-                        <SubmitButton
-                          spinnerClassName="h-3 w-3"
-                          className={`rounded-full px-2 py-1 text-xs font-medium ${
-                            order.paymentStatus === "Paid"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-neutral-200 text-neutral-600"
-                          }`}
-                        >
-                          {order.paymentStatus}
-                        </SubmitButton>
-                      </form>
-                    </td>
-                    <td className="px-4 py-3">
-                      <form
-                        action={toggleOrderDeliveryStatus.bind(
-                          null,
-                          order.id,
-                          order.deliveryStatus === "Delivered"
-                            ? "Pending"
-                            : "Delivered"
-                        )}
-                      >
-                        <SubmitButton
-                          spinnerClassName="h-3 w-3"
-                          className={`rounded-full px-2 py-1 text-xs font-medium ${
-                            order.deliveryStatus === "Delivered"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-neutral-200 text-neutral-600"
-                          }`}
-                        >
-                          {order.deliveryStatus}
-                        </SubmitButton>
-                      </form>
-                    </td>
-                    <td className="px-4 py-3">
-                      <PaymentModeSelect
-                        action={updateOrderPaymentMode.bind(null, order.id)}
-                        defaultValue={order.paymentMode}
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <form action={deleteOrder.bind(null, order.id)}>
-                        <SubmitButton
-                          spinnerClassName="h-3 w-3"
-                          className="text-xs font-medium text-red-600 hover:underline"
-                        >
-                          Delete
-                        </SubmitButton>
-                      </form>
-                    </td>
-                  </tr>
-                ))}
-              </CollapsibleGroup>
-            ))}
-          </table>
+          <OrdersTable
+            groups={groups}
+            toggleOrderPaymentStatus={toggleOrderPaymentStatus}
+            toggleOrderDeliveryStatus={toggleOrderDeliveryStatus}
+            updateOrderPaymentMode={updateOrderPaymentMode}
+            deleteOrder={deleteOrder}
+          />
         )}
       </section>
     </div>

@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
@@ -7,6 +8,12 @@ import { revalidatePath } from "next/cache";
 async function requireAdmin() {
   const session = await auth();
   if (!session) throw new Error("Unauthorized");
+}
+
+// A row's effective group is orderGroupId if set, else its own id (for rows
+// created before this field existed, or any other singleton order).
+function groupWhere(groupKey: string) {
+  return { OR: [{ orderGroupId: groupKey }, { id: groupKey }] };
 }
 
 export async function createOrder(formData: FormData) {
@@ -21,8 +28,8 @@ export async function createOrder(formData: FormData) {
   if (!customerName) throw new Error("Customer name / unit is required");
 
   // A customer can order more than one ulam in a single submission — each
-  // checked item becomes its own Order row (own qty, but sharing the same
-  // customer/payment/delivery/date), so status can still be tracked per item.
+  // checked item becomes its own Order row, sharing one orderGroupId so the
+  // whole order can be tracked and toggled together.
   const foodItemIds = formData.getAll("foodItemIds").map(String);
   if (foodItemIds.length === 0)
     throw new Error("Select at least one item to order");
@@ -42,6 +49,7 @@ export async function createOrder(formData: FormData) {
     throw new Error("One of the selected food items was not found");
 
   const date = dateStr ? new Date(dateStr) : new Date();
+  const orderGroupId = randomUUID();
 
   await prisma.order.createMany({
     data: items.map(({ foodItemId, quantity }) => ({
@@ -52,6 +60,7 @@ export async function createOrder(formData: FormData) {
       deliveryStatus,
       paymentMode,
       date,
+      orderGroupId,
     })),
   });
 
@@ -60,28 +69,40 @@ export async function createOrder(formData: FormData) {
 }
 
 export async function toggleOrderPaymentStatus(
-  id: string,
+  groupKey: string,
   paymentStatus: string
 ) {
   await requireAdmin();
-  await prisma.order.update({ where: { id }, data: { paymentStatus } });
+  await prisma.order.updateMany({
+    where: groupWhere(groupKey),
+    data: { paymentStatus },
+  });
   revalidatePath("/orders");
 }
 
 export async function toggleOrderDeliveryStatus(
-  id: string,
+  groupKey: string,
   deliveryStatus: string
 ) {
   await requireAdmin();
-  await prisma.order.update({ where: { id }, data: { deliveryStatus } });
+  await prisma.order.updateMany({
+    where: groupWhere(groupKey),
+    data: { deliveryStatus },
+  });
   revalidatePath("/orders");
   revalidatePath("/sales");
 }
 
-export async function updateOrderPaymentMode(id: string, formData: FormData) {
+export async function updateOrderPaymentMode(
+  groupKey: string,
+  formData: FormData
+) {
   await requireAdmin();
   const paymentMode = String(formData.get("paymentMode") ?? "Cash");
-  await prisma.order.update({ where: { id }, data: { paymentMode } });
+  await prisma.order.updateMany({
+    where: groupWhere(groupKey),
+    data: { paymentMode },
+  });
   revalidatePath("/orders");
 }
 
