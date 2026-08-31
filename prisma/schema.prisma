@@ -42,8 +42,14 @@ model MarketCost {
 model Sale {
   id          String   @id @default(cuid())
   date        DateTime @default(now())
-  quantity    Int
+  // Kept for historical rows recorded before quantityMade existed; no longer
+  // written to. Leftover/Total are now derived live from quantityMade and
+  // whatever's currently ordered for this food item and date, instead of a
+  // stored sold-quantity snapshot.
+  quantity    Int      @default(0)
   leftover    Int      @default(0)
+  // Total tubs made of this item on this date.
+  quantityMade Int     @default(0)
   unitPrice   Decimal  @db.Decimal(10, 2)
   totalAmount Decimal  @db.Decimal(10, 2)
   createdAt   DateTime @default(now())
@@ -70,6 +76,10 @@ model Order {
   date           DateTime @default(now())
   customerName   String
   quantity       Int
+  // Snapshot of the food item's selling price when this order was placed,
+  // so a later price change on the food item doesn't retroactively change
+  // the total for orders already recorded.
+  unitPrice      Decimal  @default(0) @db.Decimal(10, 2)
   paymentStatus  String   @default("Unpaid")
   deliveryStatus String   @default("Pending")
   paymentMode    String
