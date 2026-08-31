@@ -6,6 +6,7 @@ import { DailyMenuManager } from "./daily-menu-manager";
 import { OrderForm } from "./order-form";
 
 type MenuItem = { id: string; name: string };
+type OrderMenuItem = MenuItem & { sellingPrice: string };
 
 export function OrdersDayPanel({
   addMenuAction,
@@ -21,8 +22,8 @@ export function OrdersDayPanel({
   removeMenuAction: (id: string) => void | Promise<void>;
   menuByDateForManager: Record<string, (MenuItem & { dailyMenuId: string })[]>;
   createOrderAction: (formData: FormData) => void | Promise<void>;
-  menuByDateForOrder: Record<string, MenuItem[]>;
-  allFoodItems: MenuItem[];
+  menuByDateForOrder: Record<string, OrderMenuItem[]>;
+  allFoodItems: OrderMenuItem[];
   allFoodItemNames: string[];
   defaultDate: string;
 }) {

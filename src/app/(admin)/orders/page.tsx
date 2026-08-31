@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { toDateInputValue, utcDateKey, formatGroupDate } from "@/lib/date";
+import { toNumber } from "@/lib/money";
 import {
   createOrder,
   deleteOrder,
+  deleteOrders,
   toggleOrderPaymentStatus,
   toggleOrderDeliveryStatus,
   updateOrderPaymentMode,
@@ -10,36 +12,59 @@ import {
 import { addToDailyMenu, removeFromDailyMenu } from "@/app/actions/daily-menu";
 import { OrdersDayPanel } from "./orders-day-panel";
 import { OrdersTable } from "./orders-table";
+import { Pagination } from "@/components/pagination";
 
-export default async function OrdersPage() {
-  const [orders, foodItems, dailyMenuEntries] = await Promise.all([
+const PAGE_SIZE = 25;
+
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
+
+  const [orders, ordersCount, foodItems, dailyMenuEntries] = await Promise.all([
     prisma.order.findMany({
       // Secondary sort by orderGroupId so every row sharing one guarantees
       // to land contiguously — required for batchesFor() below.
       orderBy: [{ date: "desc" }, { orderGroupId: "desc" }],
       include: { foodItem: true },
-      take: 100,
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
     }),
+    prisma.order.count(),
     prisma.foodItem.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
     }),
     prisma.dailyMenu.findMany({
-      include: { foodItem: { select: { id: true, name: true } } },
+      include: {
+        foodItem: { select: { id: true, name: true, sellingPrice: true } },
+      },
     }),
   ]);
+
+  const totalPages = Math.max(1, Math.ceil(ordersCount / PAGE_SIZE));
 
   // "The menu for that day" = whatever's been explicitly added to that day's
   // menu, so the Order checklist only offers what's realistically available —
   // decoupled from Sale/MarketCost history.
-  const menuByDate: Record<string, { id: string; name: string }[]> = {};
+  const menuByDate: Record<
+    string,
+    { id: string; name: string; sellingPrice: string }[]
+  > = {};
   const menuByDateForManager: Record<
     string,
     { dailyMenuId: string; id: string; name: string }[]
   > = {};
   for (const entry of dailyMenuEntries) {
     const key = utcDateKey(entry.date);
-    (menuByDate[key] ??= []).push(entry.foodItem);
+    (menuByDate[key] ??= []).push({
+      id: entry.foodItem.id,
+      name: entry.foodItem.name,
+      sellingPrice: entry.foodItem.sellingPrice.toString(),
+    });
     (menuByDateForManager[key] ??= []).push({
       dailyMenuId: entry.id,
       id: entry.foodItem.id,
@@ -60,7 +85,13 @@ export default async function OrdersPage() {
       paymentStatus: string;
       deliveryStatus: string;
       paymentMode: string;
-      items: { id: string; foodItemName: string; quantity: number }[];
+      totalAmount: number;
+      items: {
+        id: string;
+        foodItemName: string;
+        quantity: number;
+        totalAmount: number;
+      }[];
     }[];
   }[] = [];
   for (const order of orders) {
@@ -81,14 +112,21 @@ export default async function OrdersPage() {
         paymentStatus: order.paymentStatus,
         deliveryStatus: order.deliveryStatus,
         paymentMode: order.paymentMode,
+        totalAmount: 0,
         items: [],
       };
       group.batches.push(batch);
     }
+    // Uses the price snapshotted on the order itself (as of when it was
+    // placed), not the food item's current price — so a later price change
+    // doesn't retroactively change totals for orders already recorded.
+    const itemTotal = order.quantity * toNumber(order.unitPrice.toString());
+    batch.totalAmount += itemTotal;
     batch.items.push({
       id: order.id,
       foodItemName: order.foodItem.name,
       quantity: order.quantity,
+      totalAmount: itemTotal,
     });
   }
 
@@ -110,6 +148,7 @@ export default async function OrdersPage() {
         allFoodItems={foodItems.map((item) => ({
           id: item.id,
           name: item.name,
+          sellingPrice: item.sellingPrice.toString(),
         }))}
         allFoodItemNames={foodItems.map((item) => item.name)}
         defaultDate={toDateInputValue(new Date())}
@@ -127,8 +166,14 @@ export default async function OrdersPage() {
             toggleOrderDeliveryStatus={toggleOrderDeliveryStatus}
             updateOrderPaymentMode={updateOrderPaymentMode}
             deleteOrder={deleteOrder}
+            bulkDeleteOrders={deleteOrders}
           />
         )}
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          buildHref={(p) => `/orders?page=${p}`}
+        />
       </section>
     </div>
   );

@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { utcDateKey } from "@/lib/date";
+import { toNumber, formatMoney } from "@/lib/money";
 import { SubmitButton } from "@/components/submit-button";
 
-type FoodItemOption = { id: string; name: string };
+type FoodItemOption = { id: string; name: string; sellingPrice: string };
 
 const PAYMENT_MODES = ["Cash", "GCash", "Both"];
 
@@ -25,6 +26,36 @@ export function OrderForm({
   }, [date, menuByDate, allFoodItems]);
 
   const hasMenuForDay = !!menuByDate[utcDateKey(new Date(date))];
+
+  // Tracks checked item + quantity so the running total can be shown live,
+  // without turning every checkbox/quantity input into a controlled field.
+  const [selections, setSelections] = useState<Record<string, number>>({});
+  const quantityInputs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  function handleCheckedChange(itemId: string, checked: boolean) {
+    setSelections((prev) => {
+      const next = { ...prev };
+      if (checked) {
+        const quantity = Number(quantityInputs.current[itemId]?.value) || 1;
+        next[itemId] = quantity;
+      } else {
+        delete next[itemId];
+      }
+      return next;
+    });
+  }
+
+  function handleQuantityChange(itemId: string, quantity: number) {
+    setSelections((prev) =>
+      itemId in prev ? { ...prev, [itemId]: quantity } : prev
+    );
+  }
+
+  const total = options.reduce((sum, item) => {
+    const quantity = selections[item.id];
+    if (!quantity) return sum;
+    return sum + toNumber(item.sellingPrice) * quantity;
+  }, 0);
 
   return (
     <form action={action} className="mt-4 space-y-4">
@@ -106,6 +137,7 @@ export function OrderForm({
                   type="checkbox"
                   name="foodItemIds"
                   value={item.id}
+                  onChange={(e) => handleCheckedChange(item.id, e.target.checked)}
                   className="h-4 w-4 rounded border-brand-tan text-brand-red focus:ring-brand-red"
                 />
                 <span className="text-brand-brown">{item.name}</span>
@@ -116,11 +148,20 @@ export function OrderForm({
                 min="1"
                 step="1"
                 defaultValue={1}
+                ref={(el) => {
+                  quantityInputs.current[item.id] = el;
+                }}
+                onChange={(e) =>
+                  handleQuantityChange(item.id, Number(e.target.value) || 1)
+                }
                 className="w-20 rounded-md border border-brand-tan px-2 py-1 text-sm"
               />
             </label>
           ))}
         </div>
+        <p className="mt-2 text-right text-sm font-medium text-brand-brown">
+          Total: {formatMoney(total)}
+        </p>
       </div>
 
       <SubmitButton

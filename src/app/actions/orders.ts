@@ -42,11 +42,13 @@ export async function createOrder(formData: FormData) {
     return { foodItemId, quantity };
   });
 
-  const foodItemCount = await prisma.foodItem.count({
+  const foodItems = await prisma.foodItem.findMany({
     where: { id: { in: foodItemIds } },
+    select: { id: true, sellingPrice: true },
   });
-  if (foodItemCount !== foodItemIds.length)
+  if (foodItems.length !== foodItemIds.length)
     throw new Error("One of the selected food items was not found");
+  const priceById = new Map(foodItems.map((f) => [f.id, f.sellingPrice]));
 
   const date = dateStr ? new Date(dateStr) : new Date();
   const orderGroupId = randomUUID();
@@ -56,6 +58,9 @@ export async function createOrder(formData: FormData) {
       customerName,
       foodItemId,
       quantity,
+      // Snapshot the price now, so a later change to the food item's selling
+      // price doesn't retroactively change this order's total.
+      unitPrice: priceById.get(foodItemId)!,
       paymentStatus,
       deliveryStatus,
       paymentMode,
@@ -93,11 +98,9 @@ export async function toggleOrderDeliveryStatus(
   revalidatePath("/sales");
 }
 
-export async function updateOrderPaymentMode(
-  groupKey: string,
-  formData: FormData
-) {
+export async function updateOrderPaymentMode(formData: FormData) {
   await requireAdmin();
+  const groupKey = String(formData.get("groupKey") ?? "");
   const paymentMode = String(formData.get("paymentMode") ?? "Cash");
   await prisma.order.updateMany({
     where: groupWhere(groupKey),
@@ -109,6 +112,14 @@ export async function updateOrderPaymentMode(
 export async function deleteOrder(id: string) {
   await requireAdmin();
   await prisma.order.delete({ where: { id } });
+  revalidatePath("/orders");
+  revalidatePath("/sales");
+}
+
+export async function deleteOrders(ids: string[]) {
+  await requireAdmin();
+  if (ids.length === 0) return;
+  await prisma.order.deleteMany({ where: { id: { in: ids } } });
   revalidatePath("/orders");
   revalidatePath("/sales");
 }

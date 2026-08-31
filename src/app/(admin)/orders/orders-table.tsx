@@ -1,7 +1,10 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
+import { formatMoney } from "@/lib/money";
 import { SubmitButton } from "@/components/submit-button";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { BulkDeleteBar } from "@/components/bulk-delete-bar";
 import { CollapsibleGroup } from "@/components/collapsible-group";
 import {
   SortableHeader,
@@ -11,7 +14,12 @@ import {
 } from "@/components/sortable-header";
 import { PaymentModeSelect } from "./payment-mode-select";
 
-type OrderItemRow = { id: string; foodItemName: string; quantity: number };
+type OrderItemRow = {
+  id: string;
+  foodItemName: string;
+  quantity: number;
+  totalAmount: number;
+};
 
 type Batch = {
   key: string;
@@ -19,6 +27,7 @@ type Batch = {
   paymentStatus: string;
   deliveryStatus: string;
   paymentMode: string;
+  totalAmount: number;
   items: OrderItemRow[];
 };
 
@@ -61,6 +70,7 @@ export function OrdersTable({
   toggleOrderDeliveryStatus,
   updateOrderPaymentMode,
   deleteOrder,
+  bulkDeleteOrders,
 }: {
   groups: Group[];
   toggleOrderPaymentStatus: (
@@ -71,13 +81,12 @@ export function OrdersTable({
     groupKey: string,
     deliveryStatus: string
   ) => void | Promise<void>;
-  updateOrderPaymentMode: (
-    groupKey: string,
-    formData: FormData
-  ) => void | Promise<void>;
+  updateOrderPaymentMode: (formData: FormData) => void | Promise<void>;
   deleteOrder: (id: string) => void | Promise<void>;
+  bulkDeleteOrders: (ids: string[]) => void | Promise<void>;
 }) {
   const [sort, setSort] = useState<SortState<SortKey>>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const sortedGroups = useMemo(
     () =>
@@ -88,10 +97,48 @@ export function OrdersTable({
     [groups, sort]
   );
 
+  const allIds = useMemo(
+    () =>
+      sortedGroups.flatMap((group) =>
+        group.batches.flatMap((batch) => batch.items.map((item) => item.id))
+      ),
+    [sortedGroups]
+  );
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected((prev) =>
+      prev.size === allIds.length ? new Set() : new Set(allIds)
+    );
+  }
+
+  async function handleBulkDelete() {
+    await bulkDeleteOrders(Array.from(selected));
+    setSelected(new Set());
+  }
+
   return (
-    <table className="w-full text-left text-sm">
+    <>
+      <BulkDeleteBar count={selected.size} action={handleBulkDelete} />
+      <table className="w-full text-left text-sm">
       <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
         <tr>
+          <th className="px-4 py-3">
+            <input
+              type="checkbox"
+              checked={allIds.length > 0 && selected.size === allIds.length}
+              onChange={toggleAll}
+              className="h-4 w-4 rounded border-brand-tan text-brand-red focus:ring-brand-red"
+            />
+          </th>
           <SortableHeader
             label="Customer / unit"
             sortKey="customer"
@@ -100,6 +147,7 @@ export function OrdersTable({
           />
           <th className="px-4 py-3">Order</th>
           <th className="px-4 py-3">Qty</th>
+          <th className="px-4 py-3">Total</th>
           <SortableHeader
             label="Payment"
             sortKey="payment"
@@ -125,13 +173,14 @@ export function OrdersTable({
         <CollapsibleGroup
           key={group.key}
           label={group.label}
-          labelColSpan={2}
+          labelColSpan={3}
           subtotal={group.subtotal}
-          trailingColSpan={4}
+          trailingColSpan={5}
         >
           {group.batches.map((batch) => (
             <Fragment key={batch.key}>
               <tr className="bg-brand-cream/50 last:border-0">
+                <td />
                 <td colSpan={3} className="px-4 py-2 font-medium text-brand-brown">
                   {batch.customerName}
                   {batch.items.length > 1 && (
@@ -139,6 +188,9 @@ export function OrdersTable({
                       {batch.items.length} items
                     </span>
                   )}
+                </td>
+                <td className="px-4 py-2 font-medium text-brand-brown">
+                  {formatMoney(batch.totalAmount)}
                 </td>
                 <td className="px-4 py-2">
                   <form
@@ -182,7 +234,8 @@ export function OrdersTable({
                 </td>
                 <td className="px-4 py-2">
                   <PaymentModeSelect
-                    action={updateOrderPaymentMode.bind(null, batch.key)}
+                    action={updateOrderPaymentMode}
+                    groupKey={batch.key}
                     defaultValue={batch.paymentMode}
                   />
                 </td>
@@ -190,20 +243,35 @@ export function OrdersTable({
               </tr>
               {batch.items.map((order) => (
                 <tr key={order.id}>
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(order.id)}
+                      onChange={() => toggleOne(order.id)}
+                      className="h-4 w-4 rounded border-brand-tan text-brand-red focus:ring-brand-red"
+                    />
+                  </td>
                   <td />
                   <td className="px-4 py-3 pl-8 text-brand-brown-light">
                     {order.foodItemName}
                   </td>
                   <td className="px-4 py-3">{order.quantity}</td>
+                  <td className="px-4 py-3 text-brand-brown-light">
+                    {formatMoney(order.totalAmount)}
+                  </td>
                   <td colSpan={3} />
                   <td className="px-4 py-3 text-right">
                     <form action={deleteOrder.bind(null, order.id)}>
-                      <SubmitButton
+                      <ConfirmSubmitButton
                         spinnerClassName="h-3 w-3"
+                        confirmTitle="Delete this order item?"
+                        confirmMessage={`This will permanently delete "${order.foodItemName}" from this order. This cannot be undone.`}
+                        confirmLabel="Delete"
+                        danger
                         className="text-xs font-medium text-red-600 hover:underline"
                       >
                         Delete
-                      </SubmitButton>
+                      </ConfirmSubmitButton>
                     </form>
                   </td>
                 </tr>
@@ -212,6 +280,7 @@ export function OrdersTable({
           ))}
         </CollapsibleGroup>
       ))}
-    </table>
+      </table>
+    </>
   );
 }
