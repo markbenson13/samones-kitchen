@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { utcDateKey } from "@/lib/date";
 import { formatMoney } from "@/lib/money";
 import { SubmitButton } from "@/components/submit-button";
@@ -42,6 +42,9 @@ export function OrderForm({
   // it's locked to the item's normal selling price, so a price can't be
   // changed by accident.
   const [saleChecked, setSaleChecked] = useState<Record<string, boolean>>({});
+  // Brief confirmation after a successful submit — the form otherwise gives
+  // no visible sign it worked, making it easy to submit the same order twice.
+  const [justSaved, setJustSaved] = useState(false);
   const quantityInputs = useRef<Record<string, HTMLInputElement | null>>({});
   const priceInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -80,6 +83,12 @@ export function OrderForm({
     );
   }
 
+  useEffect(() => {
+    if (!justSaved) return;
+    const timer = setTimeout(() => setJustSaved(false), 3000);
+    return () => clearTimeout(timer);
+  }, [justSaved]);
+
   const total = Object.values(selections).reduce(
     (sum, { quantity, price }) => sum + quantity * price,
     0
@@ -92,6 +101,7 @@ export function OrderForm({
         setCustomerName("");
         setSelections({});
         setSaleChecked({});
+        setJustSaved(true);
       }}
       className="mt-4 space-y-4"
     >
@@ -246,12 +256,17 @@ export function OrderForm({
         </p>
       </div>
 
-      <SubmitButton
-        pendingText="Adding order…"
-        className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
-      >
-        Add order
-      </SubmitButton>
+      <div className="flex items-center gap-3">
+        <SubmitButton
+          pendingText="Adding order…"
+          className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
+        >
+          Add order
+        </SubmitButton>
+        {justSaved && (
+          <span className="text-sm text-emerald-700">✓ Added</span>
+        )}
+      </div>
     </form>
   );
 }

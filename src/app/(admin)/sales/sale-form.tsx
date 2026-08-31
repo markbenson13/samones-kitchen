@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { utcDateKey } from "@/lib/date";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -48,6 +48,16 @@ export function SaleForm({
   // Price is only editable once "Sale" is checked — otherwise it's locked to
   // the item's normal selling price.
   const [isSale, setIsSale] = useState(false);
+  // Brief confirmation after a successful submit — the form otherwise gives
+  // no visible sign it worked, which made it easy to think a click hadn't
+  // registered and submit the same sale again.
+  const [justSaved, setJustSaved] = useState(false);
+
+  useEffect(() => {
+    if (!justSaved) return;
+    const timer = setTimeout(() => setJustSaved(false), 3000);
+    return () => clearTimeout(timer);
+  }, [justSaved]);
 
   // Load the selected row into the form when an edit is requested.
   const [syncedEditingSale, setSyncedEditingSale] = useState(editingSale);
@@ -102,6 +112,7 @@ export function SaleForm({
       action={async (formData) => {
         await action(formData);
         resetForm();
+        setJustSaved(true);
       }}
       className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6"
     >
@@ -230,6 +241,9 @@ export function SaleForm({
           >
             Cancel
           </button>
+        )}
+        {justSaved && (
+          <span className="text-sm text-emerald-700">✓ Saved</span>
         )}
       </div>
     </form>
