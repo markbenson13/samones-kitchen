@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { formatMoney, toNumber } from "@/lib/money";
 import { SubmitButton } from "@/components/submit-button";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { BulkDeleteBar } from "@/components/bulk-delete-bar";
 import {
   SortableHeader,
   nextSortState,
@@ -25,12 +27,17 @@ export function FoodItemsTable({
   items,
   toggleAction,
   deleteAction,
+  bulkDeleteAction,
+  onEdit,
 }: {
   items: FoodItemRow[];
   toggleAction: (id: string, isActive: boolean) => void | Promise<void>;
   deleteAction: (id: string) => void | Promise<void>;
+  bulkDeleteAction: (ids: string[]) => void | Promise<void>;
+  onEdit: (item: FoodItemRow) => void;
 }) {
   const [sort, setSort] = useState<SortState<SortKey>>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const rows = useMemo(() => {
     const computed = items.map((item) => {
@@ -64,10 +71,40 @@ export function FoodItemsTable({
     });
   }, [items, sort]);
 
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected((prev) =>
+      prev.size === rows.length ? new Set() : new Set(rows.map((r) => r.id))
+    );
+  }
+
+  async function handleBulkDelete() {
+    await bulkDeleteAction(Array.from(selected));
+    setSelected(new Set());
+  }
+
   return (
-    <table className="w-full text-left text-sm">
-      <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
+    <>
+      <BulkDeleteBar count={selected.size} action={handleBulkDelete} />
+      <table className="w-full text-left text-sm">
+        <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
         <tr>
+          <th className="px-4 py-3">
+            <input
+              type="checkbox"
+              checked={rows.length > 0 && selected.size === rows.length}
+              onChange={toggleAll}
+              className="h-4 w-4 rounded border-brand-tan text-brand-red focus:ring-brand-red"
+            />
+          </th>
           <SortableHeader
             label="Name"
             sortKey="name"
@@ -105,6 +142,14 @@ export function FoodItemsTable({
       <tbody className="divide-y divide-brand-tan/60">
         {rows.map((item) => (
           <tr key={item.id}>
+            <td className="px-4 py-3">
+              <input
+                type="checkbox"
+                checked={selected.has(item.id)}
+                onChange={() => toggleOne(item.id)}
+                className="h-4 w-4 rounded border-brand-tan text-brand-red focus:ring-brand-red"
+              />
+            </td>
             <td className="px-4 py-3 font-medium text-brand-brown">
               {item.name}
             </td>
@@ -135,21 +180,34 @@ export function FoodItemsTable({
               </form>
             </td>
             <td className="px-4 py-3 text-right">
-              <form action={deleteAction.bind(null, item.id)}>
-                <SubmitButton
-                  spinnerClassName="h-3 w-3"
-                  className="text-xs font-medium text-red-600 hover:underline"
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => onEdit(item)}
+                  className="text-xs font-medium text-brand-brown hover:underline"
                 >
-                  Delete
-                </SubmitButton>
-              </form>
+                  Edit
+                </button>
+                <form action={deleteAction.bind(null, item.id)}>
+                  <ConfirmSubmitButton
+                    spinnerClassName="h-3 w-3"
+                    confirmTitle="Delete this food item?"
+                    confirmMessage={`This will permanently delete "${item.name}". This cannot be undone.`}
+                    confirmLabel="Delete"
+                    danger
+                    className="text-xs font-medium text-red-600 hover:underline"
+                  >
+                    Delete
+                  </ConfirmSubmitButton>
+                </form>
+              </div>
             </td>
           </tr>
         ))}
         {rows.length === 0 && (
           <tr>
             <td
-              colSpan={7}
+              colSpan={8}
               className="px-4 py-6 text-center text-sm text-brand-brown-light"
             >
               No food items yet.
@@ -157,6 +215,8 @@ export function FoodItemsTable({
           </tr>
         )}
       </tbody>
-    </table>
+      </table>
+    </>
   );
 }
+

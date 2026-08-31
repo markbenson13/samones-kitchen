@@ -2,12 +2,22 @@ import { prisma } from "@/lib/prisma";
 import {
   upsertFoodItem,
   deleteFoodItem,
+  deleteFoodItems,
   toggleFoodItemActive,
 } from "@/app/actions/food-items";
-import { FoodItemForm } from "./food-item-form";
-import { FoodItemsTable } from "./food-items-table";
+import { FoodItemsSection } from "./food-items-section";
+import { Pagination } from "@/components/pagination";
 
-export default async function FoodItemsPage() {
+const PAGE_SIZE = 25;
+
+export default async function FoodItemsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
+
   const foodItems = await prisma.foodItem.findMany({
     orderBy: { createdAt: "desc" },
   });
@@ -23,6 +33,12 @@ export default async function FoodItemsPage() {
     new Set(foodItems.map((item) => item.category).filter((c) => c))
   ).sort() as string[];
 
+  const totalPages = Math.max(1, Math.ceil(foodItems.length / PAGE_SIZE));
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const pageIndexes = foodItems
+    .map((_, i) => i)
+    .slice(pageStart, pageStart + PAGE_SIZE);
+
   return (
     <div className="space-y-8">
       <div>
@@ -34,29 +50,25 @@ export default async function FoodItemsPage() {
         </p>
       </div>
 
-      <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-medium text-brand-brown">Add food item</h2>
-        <p className="mt-1 text-xs text-brand-brown-light">
-          Type an existing name to load and edit that item instead of
-          creating a duplicate.
-        </p>
-        <FoodItemForm
-          action={upsertFoodItem}
-          items={formItems}
-          categories={categories}
-        />
-      </section>
-
-      <section className="overflow-hidden rounded-xl border border-brand-tan bg-white shadow-sm">
-        <FoodItemsTable
-          items={formItems.map((item, i) => ({
-            ...item,
-            isActive: foodItems[i].isActive,
-          }))}
-          toggleAction={toggleFoodItemActive}
-          deleteAction={deleteFoodItem}
-        />
-      </section>
+      <FoodItemsSection
+        action={upsertFoodItem}
+        items={formItems}
+        categories={categories}
+        tableItems={pageIndexes.map((i) => ({
+          ...formItems[i],
+          isActive: foodItems[i].isActive,
+        }))}
+        toggleAction={toggleFoodItemActive}
+        deleteAction={deleteFoodItem}
+        bulkDeleteAction={deleteFoodItems}
+        pagination={
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            buildHref={(p) => `/food-items?page=${p}`}
+          />
+        }
+      />
     </div>
   );
 }

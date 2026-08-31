@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Combobox } from "@/components/combobox";
 import { SubmitButton } from "@/components/submit-button";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 
 type FoodItemOption = {
   id: string;
@@ -18,24 +19,44 @@ export function FoodItemForm({
   action,
   items,
   categories,
+  editingItem,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   items: FoodItemOption[];
   categories: string[];
+  editingItem?: FoodItemOption | null;
 }) {
   const [fields, setFields] = useState(emptyState);
+
+  // Adjust local fields when a new item is selected for editing, without an
+  // effect: https://react.dev/learn/you-might-not-need-an-effect
+  const [syncedEditingItem, setSyncedEditingItem] = useState(editingItem);
+  if (editingItem && editingItem !== syncedEditingItem) {
+    setSyncedEditingItem(editingItem);
+    setFields({
+      id: editingItem.id,
+      name: editingItem.name,
+      category: editingItem.category ?? "",
+      costPrice: editingItem.costPrice,
+      sellingPrice: editingItem.sellingPrice,
+    });
+  }
 
   function handleNameChange(value: string) {
     const match = items.find(
       (item) => item.name.toLowerCase() === value.toLowerCase()
     );
-    setFields({
-      id: match?.id ?? "",
+    // Only switch id when the typed name matches another existing item.
+    // Otherwise, keep whatever id was already loaded — typing to rename or
+    // fix a typo on the item currently being edited must not silently fall
+    // back to creating a new item.
+    setFields((prev) => ({
+      id: match ? match.id : prev.id,
       name: value,
-      category: match ? (match.category ?? "") : fields.category,
-      costPrice: match ? match.costPrice : fields.costPrice,
-      sellingPrice: match ? match.sellingPrice : fields.sellingPrice,
-    });
+      category: match ? (match.category ?? "") : prev.category,
+      costPrice: match ? match.costPrice : prev.costPrice,
+      sellingPrice: match ? match.sellingPrice : prev.sellingPrice,
+    }));
   }
 
   async function handleAction(formData: FormData) {
@@ -116,12 +137,24 @@ export function FoodItemForm({
       </div>
 
       <div className="flex items-end gap-2 lg:col-span-5">
-        <SubmitButton
-          pendingText={fields.id ? "Updating…" : "Adding…"}
-          className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
-        >
-          {fields.id ? "Update item" : "Add item"}
-        </SubmitButton>
+        {fields.id ? (
+          <ConfirmSubmitButton
+            pendingText="Updating…"
+            confirmTitle="Save changes?"
+            confirmMessage={`This will update "${fields.name}" with the values shown in this form.`}
+            confirmLabel="Save changes"
+            className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
+          >
+            Update item
+          </ConfirmSubmitButton>
+        ) : (
+          <SubmitButton
+            pendingText="Adding…"
+            className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
+          >
+            Add item
+          </SubmitButton>
+        )}
         {fields.id && (
           <button
             type="button"

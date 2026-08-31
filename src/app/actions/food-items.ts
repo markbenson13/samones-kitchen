@@ -60,3 +60,25 @@ export async function deleteFoodItem(id: string) {
   await prisma.foodItem.delete({ where: { id } });
   revalidatePath("/food-items");
 }
+
+export async function deleteFoodItems(ids: string[]) {
+  await requireAdmin();
+  if (ids.length === 0) return;
+
+  const withSales = await prisma.sale.findMany({
+    where: { foodItemId: { in: ids } },
+    select: { foodItemId: true },
+    distinct: ["foodItemId"],
+  });
+  const blockedIds = new Set(withSales.map((s) => s.foodItemId));
+  const deletableIds = ids.filter((id) => !blockedIds.has(id));
+
+  await prisma.foodItem.deleteMany({ where: { id: { in: deletableIds } } });
+  revalidatePath("/food-items");
+
+  if (blockedIds.size > 0) {
+    throw new Error(
+      `Deleted ${deletableIds.length} item(s). Skipped ${blockedIds.size} that already have recorded sales — mark those inactive instead.`
+    );
+  }
+}
