@@ -10,8 +10,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import Image from "next/image";
 import { useFormStatus } from "react-dom";
-import { Spinner } from "./spinner";
 
 const LoadingContext = createContext<
   ((id: string, pending: boolean) => void) | null
@@ -39,8 +39,14 @@ export function LoadingOverlayProvider({ children }: { children: ReactNode }) {
           aria-live="polite"
           aria-busy="true"
         >
-          <div className="flex items-center gap-3 rounded-xl bg-white px-6 py-4 shadow-lg">
-            <Spinner className="h-5 w-5 text-brand-red" />
+          <div className="flex flex-col items-center gap-3 rounded-xl bg-white px-8 py-6 shadow-lg">
+            <Image
+              src="/logo.png"
+              alt=""
+              width={56}
+              height={56}
+              className="h-14 w-14 animate-pulse object-contain"
+            />
             <span className="text-sm font-medium text-brand-brown">
               Working…
             </span>
