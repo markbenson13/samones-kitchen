@@ -36,3 +36,11 @@ export async function deleteMarketCost(id: string) {
   revalidatePath("/market-costs");
   revalidatePath("/dashboard");
 }
+
+export async function deleteMarketCosts(ids: string[]) {
+  await requireAdmin();
+  if (ids.length === 0) return;
+  await prisma.marketCost.deleteMany({ where: { id: { in: ids } } });
+  revalidatePath("/market-costs");
+  revalidatePath("/dashboard");
+}

@@ -7,18 +7,25 @@ import {
   formatGroupDate,
   formatRangeDate,
 } from "@/lib/date";
-import { createMarketCost, deleteMarketCost } from "@/app/actions/market-costs";
+import {
+  createMarketCost,
+  deleteMarketCost,
+  deleteMarketCosts,
+} from "@/app/actions/market-costs";
 import { SubmitButton } from "@/components/submit-button";
+import { Pagination } from "@/components/pagination";
 import { MarketCostsTable } from "./market-costs-table";
 
 const DEFAULT_RANGE_DAYS = 30;
+const PAGE_SIZE = 25;
 
 export default async function MarketCostsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; page?: string }>;
 }) {
-  const { from: fromParam, to: toParam } = await searchParams;
+  const { from: fromParam, to: toParam, page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
 
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
@@ -31,15 +38,21 @@ export default async function MarketCostsPage({
   const toDateExclusive = new Date(toDate);
   toDateExclusive.setUTCDate(toDateExclusive.getUTCDate() + 1);
 
-  const marketCosts = await prisma.marketCost.findMany({
-    where: { date: { gte: fromDate, lt: toDateExclusive } },
-    orderBy: { date: "desc" },
-  });
+  const where = { date: { gte: fromDate, lt: toDateExclusive } };
 
-  const total = marketCosts.reduce(
-    (sum, cost) => sum + toNumber(cost.amount.toString()),
-    0
-  );
+  const [marketCosts, totalCount, totalAgg] = await Promise.all([
+    prisma.marketCost.findMany({
+      where,
+      orderBy: { date: "desc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+    }),
+    prisma.marketCost.count({ where }),
+    prisma.marketCost.aggregate({ where, _sum: { amount: true } }),
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const total = toNumber(totalAgg._sum.amount?.toString() ?? "0");
 
   const groups: {
     key: string;
@@ -194,10 +207,18 @@ export default async function MarketCostsPage({
               })),
             }))}
             deleteAction={deleteMarketCost}
+            bulkDeleteAction={deleteMarketCosts}
             totalLabel={`Total (${formatRangeDate(fromDate)} – ${formatRangeDate(toDate)})`}
             total={total}
           />
         )}
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          buildHref={(p) =>
+            `/market-costs?from=${utcDateKey(fromDate)}&to=${utcDateKey(toDate)}&page=${p}`
+          }
+        />
       </section>
     </div>
   );
