@@ -5,6 +5,7 @@ import { getDailyMenuByDate } from "@/lib/daily-menu";
 import { createSale, deleteSale } from "@/app/actions/sales";
 import { SaleForm } from "./sale-form";
 import { CollapsibleGroup } from "@/components/collapsible-group";
+import { SubmitButton } from "@/components/submit-button";
 
 export default async function SalesPage() {
   const [sales, foodItems, leftoverAgg, orderedAgg, menuByDate] =
@@ -155,12 +156,12 @@ export default async function SalesPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <form action={deleteSale.bind(null, sale.id)}>
-                          <button
-                            type="submit"
+                          <SubmitButton
+                            spinnerClassName="h-3 w-3"
                             className="text-xs font-medium text-red-600 hover:underline"
                           >
                             Delete
-                          </button>
+                          </SubmitButton>
                         </form>
                       </td>
                     </tr>

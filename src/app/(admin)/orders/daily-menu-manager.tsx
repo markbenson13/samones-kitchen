@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Combobox } from "@/components/combobox";
 import { CollapsibleSection } from "@/components/collapsible-section";
+import { SubmitButton } from "@/components/submit-button";
 import { utcDateKey } from "@/lib/date";
 
 type MenuItem = { id: string; name: string };
@@ -56,12 +57,12 @@ export function DailyMenuManager({
           />
         </div>
         <div className="flex items-end">
-          <button
-            type="submit"
+          <SubmitButton
+            pendingText="Adding…"
             className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
           >
             Add to menu
-          </button>
+          </SubmitButton>
         </div>
       </form>
 
@@ -79,13 +80,13 @@ export function DailyMenuManager({
               >
                 {item.name}
                 <form action={removeAction.bind(null, item.dailyMenuId)}>
-                  <button
-                    type="submit"
+                  <SubmitButton
+                    spinnerClassName="h-2.5 w-2.5"
                     aria-label={`Remove ${item.name} from this day's menu`}
                     className="text-brand-brown-light hover:text-brand-red"
                   >
                     ×
-                  </button>
+                  </SubmitButton>
                 </form>
               </li>
             ))}

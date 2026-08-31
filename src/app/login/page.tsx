@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { loginAction, loginWithGoogleAction } from "./actions";
+import { SubmitButton } from "@/components/submit-button";
 
 export default async function LoginPage({
   searchParams,
@@ -67,12 +68,12 @@ export default async function LoginPage({
             </p>
           )}
 
-          <button
-            type="submit"
+          <SubmitButton
+            pendingText="Signing in…"
             className="w-full rounded-md bg-brand-red px-3 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
           >
             Sign in
-          </button>
+          </SubmitButton>
         </form>
 
         <div className="mt-6 flex items-center gap-3">
@@ -82,8 +83,8 @@ export default async function LoginPage({
         </div>
 
         <form action={loginWithGoogleAction} className="mt-4">
-          <button
-            type="submit"
+          <SubmitButton
+            pendingText="Redirecting…"
             className="flex w-full items-center justify-center gap-2 rounded-md border border-brand-tan px-3 py-2 text-sm font-medium text-brand-brown hover:bg-brand-cream"
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
@@ -105,7 +106,7 @@ export default async function LoginPage({
               />
             </svg>
             Sign in with Google
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </main>

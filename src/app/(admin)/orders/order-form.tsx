@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { utcDateKey } from "@/lib/date";
+import { SubmitButton } from "@/components/submit-button";
 
 type FoodItemOption = { id: string; name: string };
 
@@ -122,12 +123,12 @@ export function OrderForm({
         </div>
       </div>
 
-      <button
-        type="submit"
+      <SubmitButton
+        pendingText="Adding order…"
         className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
       >
         Add order
-      </button>
+      </SubmitButton>
     </form>
   );
 }

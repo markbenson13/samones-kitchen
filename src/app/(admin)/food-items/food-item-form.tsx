@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Combobox } from "@/components/combobox";
+import { SubmitButton } from "@/components/submit-button";
 
 type FoodItemOption = {
   id: string;
@@ -115,12 +116,12 @@ export function FoodItemForm({
       </div>
 
       <div className="flex items-end gap-2 lg:col-span-5">
-        <button
-          type="submit"
+        <SubmitButton
+          pendingText={fields.id ? "Updating…" : "Adding…"}
           className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
         >
           {fields.id ? "Update item" : "Add item"}
-        </button>
+        </SubmitButton>
         {fields.id && (
           <button
             type="button"

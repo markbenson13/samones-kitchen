@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatMoney, toNumber } from "@/lib/money";
 import { utcDateKey, formatRangeDate } from "@/lib/date";
 import { IncomeChart } from "./income-chart";
+import { SubmitButton } from "@/components/submit-button";
 
 const DEFAULT_RANGE_DAYS = 30;
 const MAX_CHART_DAYS = 366;
@@ -120,12 +121,12 @@ export default async function DashboardPage({
             className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
           />
         </div>
-        <button
-          type="submit"
+        <SubmitButton
+          pendingText="Applying…"
           className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
         >
           Apply
-        </button>
+        </SubmitButton>
         <Link
           href="/dashboard"
           className="rounded-md border border-brand-tan px-4 py-2 text-sm font-medium text-brand-brown hover:bg-brand-cream"

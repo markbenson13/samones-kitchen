@@ -6,6 +6,7 @@ import {
   toggleFoodItemActive,
 } from "@/app/actions/food-items";
 import { FoodItemForm } from "./food-item-form";
+import { SubmitButton } from "@/components/submit-button";
 
 export default async function FoodItemsPage() {
   const foodItems = await prisma.foodItem.findMany({
@@ -90,8 +91,8 @@ export default async function FoodItemsPage() {
                         !item.isActive
                       )}
                     >
-                      <button
-                        type="submit"
+                      <SubmitButton
+                        spinnerClassName="h-3 w-3"
                         className={`rounded-full px-2 py-1 text-xs font-medium ${
                           item.isActive
                             ? "bg-emerald-100 text-emerald-700"
@@ -99,17 +100,17 @@ export default async function FoodItemsPage() {
                         }`}
                       >
                         {item.isActive ? "Active" : "Inactive"}
-                      </button>
+                      </SubmitButton>
                     </form>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <form action={deleteFoodItem.bind(null, item.id)}>
-                      <button
-                        type="submit"
+                      <SubmitButton
+                        spinnerClassName="h-3 w-3"
                         className="text-xs font-medium text-red-600 hover:underline"
                       >
                         Delete
-                      </button>
+                      </SubmitButton>
                     </form>
                   </td>
                 </tr>

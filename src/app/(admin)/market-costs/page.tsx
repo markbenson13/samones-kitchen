@@ -9,6 +9,7 @@ import {
 } from "@/lib/date";
 import { createMarketCost, deleteMarketCost } from "@/app/actions/market-costs";
 import { CollapsibleGroup } from "@/components/collapsible-group";
+import { SubmitButton } from "@/components/submit-button";
 
 const DEFAULT_RANGE_DAYS = 30;
 
@@ -129,12 +130,12 @@ export default async function MarketCostsPage({
             />
           </div>
           <div className="flex items-end lg:col-span-5">
-            <button
-              type="submit"
+            <SubmitButton
+              pendingText="Adding…"
               className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
             >
               Add cost
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </section>
@@ -162,12 +163,12 @@ export default async function MarketCostsPage({
             className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
           />
         </div>
-        <button
-          type="submit"
+        <SubmitButton
+          pendingText="Applying…"
           className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
         >
           Apply
-        </button>
+        </SubmitButton>
         <Link
           href="/market-costs"
           className="rounded-md border border-brand-tan px-4 py-2 text-sm font-medium text-brand-brown hover:bg-brand-cream"
@@ -212,12 +213,12 @@ export default async function MarketCostsPage({
                     </td>
                     <td className="px-4 py-3 text-right">
                       <form action={deleteMarketCost.bind(null, cost.id)}>
-                        <button
-                          type="submit"
+                        <SubmitButton
+                          spinnerClassName="h-3 w-3"
                           className="text-xs font-medium text-red-600 hover:underline"
                         >
                           Delete
-                        </button>
+                        </SubmitButton>
                       </form>
                     </td>
                   </tr>

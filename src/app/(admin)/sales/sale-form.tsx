@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { utcDateKey } from "@/lib/date";
+import { SubmitButton } from "@/components/submit-button";
 
 type FoodItemOption = { id: string; name: string; sellingPrice: string };
 
@@ -131,12 +132,12 @@ export function SaleForm({
       </div>
 
       <div className="flex items-end lg:col-span-5">
-        <button
-          type="submit"
+        <SubmitButton
+          pendingText="Recording…"
           className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
         >
           Record sale
-        </button>
+        </SubmitButton>
       </div>
     </form>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { SubmitButton } from "@/components/submit-button";
 
 export function UserMenu({
   name,
@@ -58,12 +59,12 @@ export function UserMenu({
             <p className="mt-0.5 text-xs text-brand-brown-light">{name}</p>
           </div>
           <form action={signOutAction}>
-            <button
-              type="submit"
+            <SubmitButton
+              pendingText="Signing out…"
               className="block w-full rounded-b-md px-4 py-2 text-left text-brand-brown hover:bg-brand-cream"
             >
               Sign out
-            </button>
+            </SubmitButton>
           </form>
         </div>
       )}

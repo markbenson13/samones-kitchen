@@ -11,6 +11,7 @@ import { addToDailyMenu, removeFromDailyMenu } from "@/app/actions/daily-menu";
 import { OrdersDayPanel } from "./orders-day-panel";
 import { PaymentModeSelect } from "./payment-mode-select";
 import { CollapsibleGroup } from "@/components/collapsible-group";
+import { SubmitButton } from "@/components/submit-button";
 
 export default async function OrdersPage() {
   const [orders, foodItems, dailyMenuEntries] = await Promise.all([
@@ -134,8 +135,8 @@ export default async function OrdersPage() {
                           order.paymentStatus === "Paid" ? "Unpaid" : "Paid"
                         )}
                       >
-                        <button
-                          type="submit"
+                        <SubmitButton
+                          spinnerClassName="h-3 w-3"
                           className={`rounded-full px-2 py-1 text-xs font-medium ${
                             order.paymentStatus === "Paid"
                               ? "bg-emerald-100 text-emerald-700"
@@ -143,7 +144,7 @@ export default async function OrdersPage() {
                           }`}
                         >
                           {order.paymentStatus}
-                        </button>
+                        </SubmitButton>
                       </form>
                     </td>
                     <td className="px-4 py-3">
@@ -156,8 +157,8 @@ export default async function OrdersPage() {
                             : "Delivered"
                         )}
                       >
-                        <button
-                          type="submit"
+                        <SubmitButton
+                          spinnerClassName="h-3 w-3"
                           className={`rounded-full px-2 py-1 text-xs font-medium ${
                             order.deliveryStatus === "Delivered"
                               ? "bg-emerald-100 text-emerald-700"
@@ -165,7 +166,7 @@ export default async function OrdersPage() {
                           }`}
                         >
                           {order.deliveryStatus}
-                        </button>
+                        </SubmitButton>
                       </form>
                     </td>
                     <td className="px-4 py-3">
@@ -176,12 +177,12 @@ export default async function OrdersPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <form action={deleteOrder.bind(null, order.id)}>
-                        <button
-                          type="submit"
+                        <SubmitButton
+                          spinnerClassName="h-3 w-3"
                           className="text-xs font-medium text-red-600 hover:underline"
                         >
                           Delete
-                        </button>
+                        </SubmitButton>
                       </form>
                     </td>
                   </tr>
