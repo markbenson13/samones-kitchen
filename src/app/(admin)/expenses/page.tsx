@@ -111,7 +111,7 @@ export default async function ExpensesPage({
         />
       </div>
 
-      <form className="flex flex-wrap items-end gap-3">
+      <form suppressHydrationWarning className="flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-xs font-medium text-brand-brown-light">
             From
@@ -150,7 +150,7 @@ export default async function ExpensesPage({
 
       <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
         <h2 className="text-sm font-medium text-brand-brown">Add expense</h2>
-        <form
+        <form suppressHydrationWarning
           action={createExpense}
           className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
         >

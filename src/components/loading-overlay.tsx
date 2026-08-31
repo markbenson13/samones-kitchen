@@ -59,7 +59,7 @@ export function LoadingOverlayProvider({ children }: { children: ReactNode }) {
 
 // Reports this component's nearest-form pending state to the global overlay,
 // for forms (like an auto-submitting <select>) that have no SubmitButton of
-// their own to report it. Must be rendered inside the <form>.
+// their own to report it. Must be rendered inside the <form suppressHydrationWarning>.
 export function FormPendingReporter() {
   const { pending } = useFormStatus();
   const report = useLoadingReport();

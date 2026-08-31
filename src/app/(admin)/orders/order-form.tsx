@@ -95,7 +95,7 @@ export function OrderForm({
   );
 
   return (
-    <form
+    <form suppressHydrationWarning
       action={async (formData) => {
         await action(formData);
         setCustomerName("");

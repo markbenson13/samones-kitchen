@@ -194,7 +194,7 @@ export function OrdersTable({
                   {formatMoney(batch.totalAmount)}
                 </td>
                 <td className="px-4 py-2">
-                  <form
+                  <form suppressHydrationWarning
                     action={toggleOrderPaymentStatus.bind(
                       null,
                       batch.key,
@@ -214,7 +214,7 @@ export function OrdersTable({
                   </form>
                 </td>
                 <td className="px-4 py-2">
-                  <form
+                  <form suppressHydrationWarning
                     action={toggleOrderDeliveryStatus.bind(
                       null,
                       batch.key,
@@ -267,7 +267,7 @@ export function OrdersTable({
                   </td>
                   <td colSpan={3} />
                   <td className="px-4 py-3 text-right">
-                    <form action={deleteOrder.bind(null, order.id)}>
+                    <form suppressHydrationWarning action={deleteOrder.bind(null, order.id)}>
                       <ConfirmSubmitButton
                         spinnerClassName="h-3 w-3"
                         confirmTitle="Delete this order item?"

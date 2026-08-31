@@ -35,7 +35,7 @@ export function DailyMenuManager({
           : `${todaysMenu.length} dish${todaysMenu.length === 1 ? "" : "es"} set for this day.`
       }
     >
-      <form
+      <form suppressHydrationWarning
         action={(formData) => {
           addAction(formData);
           setName("");
@@ -79,7 +79,7 @@ export function DailyMenuManager({
                 className="flex items-center gap-2 rounded-full bg-brand-cream px-3 py-1 text-sm text-brand-brown"
               >
                 {item.name}
-                <form action={removeAction.bind(null, item.dailyMenuId)}>
+                <form suppressHydrationWarning action={removeAction.bind(null, item.dailyMenuId)}>
                   <SubmitButton
                     spinnerClassName="h-2.5 w-2.5"
                     aria-label={`Remove ${item.name} from this day's menu`}

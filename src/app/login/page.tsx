@@ -27,7 +27,7 @@ export default async function LoginPage({
           <p className="mt-1 text-sm text-brand-brown-light">Admin sign in</p>
         </div>
 
-        <form action={loginAction} className="mt-6 space-y-4">
+        <form suppressHydrationWarning action={loginAction} className="mt-6 space-y-4">
           <div>
             <label
               htmlFor="email"
@@ -88,7 +88,7 @@ export default async function LoginPage({
           <div className="h-px flex-1 bg-brand-tan" />
         </div>
 
-        <form action={loginWithGoogleAction} className="mt-4">
+        <form suppressHydrationWarning action={loginWithGoogleAction} className="mt-4">
           <SubmitButton
             pendingText="Redirecting…"
             className="flex w-full items-center justify-center gap-2 rounded-md border border-brand-tan px-3 py-2 text-sm font-medium text-brand-brown hover:bg-brand-cream"

@@ -12,7 +12,7 @@ export function BulkDeleteBar({
   if (count === 0) return null;
 
   return (
-    <form
+    <form suppressHydrationWarning
       action={action}
       className="flex items-center justify-between border-b border-brand-tan bg-brand-cream/60 px-4 py-2"
     >

@@ -25,7 +25,7 @@ export function PaymentModeSelect({
   }
 
   return (
-    <form action={action}>
+    <form suppressHydrationWarning action={action}>
       <FormPendingReporter />
       <input type="hidden" name="groupKey" value={groupKey} />
       {/* Keyed on value so a change forces a fresh mount: React resets a

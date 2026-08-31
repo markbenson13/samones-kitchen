@@ -141,7 +141,7 @@ export function ExpensesTable({
               </td>
               <td className="px-4 py-3">{formatMoney(expense.amount)}</td>
               <td className="px-4 py-3 text-right">
-                <form action={deleteAction.bind(null, expense.id)}>
+                <form suppressHydrationWarning action={deleteAction.bind(null, expense.id)}>
                   <ConfirmSubmitButton
                     spinnerClassName="h-3 w-3"
                     confirmTitle="Delete this expense?"

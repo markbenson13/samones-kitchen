@@ -153,7 +153,7 @@ export function MarketCostsTable({
               </td>
               <td className="px-4 py-3">{formatMoney(cost.amount)}</td>
               <td className="px-4 py-3 text-right">
-                <form action={deleteAction.bind(null, cost.id)}>
+                <form suppressHydrationWarning action={deleteAction.bind(null, cost.id)}>
                   <ConfirmSubmitButton
                     spinnerClassName="h-3 w-3"
                     confirmTitle="Delete this market cost?"

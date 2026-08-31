@@ -65,7 +65,7 @@ export function FoodItemForm({
   }
 
   return (
-    <form
+    <form suppressHydrationWarning
       action={handleAction}
       className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
     >

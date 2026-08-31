@@ -125,7 +125,7 @@ export function SaleForm({
   }
 
   return (
-    <form
+    <form suppressHydrationWarning
       action={async (formData) => {
         await action(formData);
         resetForm();

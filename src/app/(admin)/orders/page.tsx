@@ -182,7 +182,7 @@ export default async function OrdersPage({
         defaultDate={toDateInputValue(new Date())}
       />
 
-      <form className="flex flex-wrap items-end gap-3">
+      <form suppressHydrationWarning className="flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-xs font-medium text-brand-brown-light">
             Payment

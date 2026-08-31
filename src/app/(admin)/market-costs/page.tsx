@@ -91,7 +91,7 @@ export default async function MarketCostsPage({
 
       <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
         <h2 className="text-sm font-medium text-brand-brown">Add cost</h2>
-        <form
+        <form suppressHydrationWarning
           action={createMarketCost}
           className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
         >
@@ -153,7 +153,7 @@ export default async function MarketCostsPage({
         </form>
       </section>
 
-      <form className="flex flex-wrap items-end gap-3">
+      <form suppressHydrationWarning className="flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-xs font-medium text-brand-brown-light">
             From

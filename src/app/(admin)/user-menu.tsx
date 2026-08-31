@@ -79,7 +79,7 @@ export function UserMenu({
           >
             Change password
           </Link>
-          <form action={signOutAction}>
+          <form suppressHydrationWarning action={signOutAction}>
             <SubmitButton
               pendingText="Signing out…"
               className="block w-full rounded-b-md px-4 py-2 text-left text-brand-brown hover:bg-brand-cream"

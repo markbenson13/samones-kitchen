@@ -220,7 +220,7 @@ export function SalesTable({
                     >
                       Edit
                     </button>
-                    <form action={deleteAction.bind(null, sale.id)}>
+                    <form suppressHydrationWarning action={deleteAction.bind(null, sale.id)}>
                       <ConfirmSubmitButton
                         spinnerClassName="h-3 w-3"
                         confirmTitle="Delete this sale?"

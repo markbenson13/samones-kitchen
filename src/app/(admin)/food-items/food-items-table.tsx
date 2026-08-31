@@ -166,7 +166,7 @@ export function FoodItemsTable({
               {formatMoney(item.margin)}
             </td>
             <td className="px-4 py-3">
-              <form action={toggleAction.bind(null, item.id, !item.isActive)}>
+              <form suppressHydrationWarning action={toggleAction.bind(null, item.id, !item.isActive)}>
                 <SubmitButton
                   spinnerClassName="h-3 w-3"
                   className={`rounded-full px-2 py-1 text-xs font-medium ${
@@ -188,7 +188,7 @@ export function FoodItemsTable({
                 >
                   Edit
                 </button>
-                <form action={deleteAction.bind(null, item.id)}>
+                <form suppressHydrationWarning action={deleteAction.bind(null, item.id)}>
                   <ConfirmSubmitButton
                     spinnerClassName="h-3 w-3"
                     confirmTitle="Delete this food item?"

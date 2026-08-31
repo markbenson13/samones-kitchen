@@ -31,7 +31,7 @@ function ResetPasswordRow({
   return (
     <tr className="border-t border-brand-tan bg-brand-cream/40">
       <td colSpan={2} className="px-4 py-3">
-        <form
+        <form suppressHydrationWarning
           action={async (formData) => {
             await resetPasswordAction(formData);
             onCancel();
@@ -123,7 +123,7 @@ export function UsersSection({
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-3">
-                      <form action={approveAction.bind(null, user.id)}>
+                      <form suppressHydrationWarning action={approveAction.bind(null, user.id)}>
                         <SubmitButton
                           spinnerClassName="h-3 w-3"
                           className="rounded-md bg-brand-red px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-red-dark"
@@ -131,7 +131,7 @@ export function UsersSection({
                           Approve
                         </SubmitButton>
                       </form>
-                      <form action={removeAction.bind(null, user.id)}>
+                      <form suppressHydrationWarning action={removeAction.bind(null, user.id)}>
                         <ConfirmSubmitButton
                           spinnerClassName="h-3 w-3"
                           confirmTitle="Reject this sign-up?"
@@ -197,7 +197,7 @@ export function UsersSection({
                             >
                               Reset password
                             </button>
-                            <form action={removeAction.bind(null, user.id)}>
+                            <form suppressHydrationWarning action={removeAction.bind(null, user.id)}>
                               <ConfirmSubmitButton
                                 spinnerClassName="h-3 w-3"
                                 confirmTitle="Revoke access?"

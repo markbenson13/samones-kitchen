@@ -16,7 +16,7 @@ export function ChangePasswordForm({
   const [done, setDone] = useState(false);
 
   return (
-    <form
+    <form suppressHydrationWarning
       action={async (formData) => {
         setDone(false);
         await action(formData);
