@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { formatMoney, toNumber } from "@/lib/money";
+import { toNumber } from "@/lib/money";
 import {
   toDateInputValue,
   utcDateKey,
@@ -8,8 +8,8 @@ import {
   formatRangeDate,
 } from "@/lib/date";
 import { createMarketCost, deleteMarketCost } from "@/app/actions/market-costs";
-import { CollapsibleGroup } from "@/components/collapsible-group";
 import { SubmitButton } from "@/components/submit-button";
+import { MarketCostsTable } from "./market-costs-table";
 
 const DEFAULT_RANGE_DAYS = 30;
 
@@ -183,63 +183,20 @@ export default async function MarketCostsPage({
             No market costs logged in this period.
           </p>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
-              <tr>
-                <th className="px-4 py-3">Description</th>
-                <th className="px-4 py-3">Quantity</th>
-                <th className="px-4 py-3">Amount</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            {groups.map((group) => (
-              <CollapsibleGroup
-                key={group.key}
-                label={group.label}
-                labelColSpan={2}
-                subtotal={formatMoney(group.subtotal)}
-                trailingColSpan={1}
-              >
-                {group.items.map((cost) => (
-                  <tr key={cost.id}>
-                    <td className="px-4 py-3 font-medium text-brand-brown">
-                      {cost.description}
-                    </td>
-                    <td className="px-4 py-3 text-brand-brown-light">
-                      {cost.quantity ?? "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {formatMoney(cost.amount.toString())}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <form action={deleteMarketCost.bind(null, cost.id)}>
-                        <SubmitButton
-                          spinnerClassName="h-3 w-3"
-                          className="text-xs font-medium text-red-600 hover:underline"
-                        >
-                          Delete
-                        </SubmitButton>
-                      </form>
-                    </td>
-                  </tr>
-                ))}
-              </CollapsibleGroup>
-            ))}
-            <tfoot className="border-t-2 border-brand-tan bg-brand-cream">
-              <tr>
-                <td
-                  className="px-4 py-3 font-medium text-brand-brown"
-                  colSpan={2}
-                >
-                  Total ({formatRangeDate(fromDate)} – {formatRangeDate(toDate)})
-                </td>
-                <td className="px-4 py-3 font-semibold text-brand-brown">
-                  {formatMoney(total)}
-                </td>
-                <td />
-              </tr>
-            </tfoot>
-          </table>
+          <MarketCostsTable
+            groups={groups.map((group) => ({
+              ...group,
+              items: group.items.map((cost) => ({
+                id: cost.id,
+                description: cost.description,
+                quantity: cost.quantity,
+                amount: cost.amount.toString(),
+              })),
+            }))}
+            deleteAction={deleteMarketCost}
+            totalLabel={`Total (${formatRangeDate(fromDate)} – ${formatRangeDate(toDate)})`}
+            total={total}
+          />
         )}
       </section>
     </div>

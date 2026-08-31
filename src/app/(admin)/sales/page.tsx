@@ -1,11 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { formatMoney, toNumber } from "@/lib/money";
+import { toNumber } from "@/lib/money";
 import { toDateInputValue, utcDateKey, formatGroupDate } from "@/lib/date";
 import { getDailyMenuByDate } from "@/lib/daily-menu";
 import { createSale, deleteSale } from "@/app/actions/sales";
 import { SaleForm } from "./sale-form";
-import { CollapsibleGroup } from "@/components/collapsible-group";
-import { SubmitButton } from "@/components/submit-button";
+import { SalesTable } from "./sales-table";
 
 export default async function SalesPage() {
   const [sales, foodItems, leftoverAgg, orderedAgg, menuByDate] =
@@ -111,79 +110,23 @@ export default async function SalesPage() {
             No sales recorded yet.
           </p>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
-              <tr>
-                <th className="px-4 py-3">Food item</th>
-                <th className="px-4 py-3">Qty</th>
-                <th className="px-4 py-3">Leftover</th>
-                <th className="px-4 py-3">Unit price</th>
-                <th className="px-4 py-3">Total</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            {groups.map((group) => (
-              <CollapsibleGroup
-                key={group.key}
-                label={group.label}
-                labelColSpan={4}
-                subtotal={formatMoney(group.subtotal)}
-                trailingColSpan={1}
-              >
-                {group.items.map((sale) => {
-                  const isSale =
-                    toNumber(sale.unitPrice.toString()) <
-                    toNumber(sale.foodItem.sellingPrice.toString());
-                  return (
-                    <tr key={sale.id}>
-                      <td className="px-4 py-3 font-medium text-brand-brown">
-                        {sale.foodItem.name}
-                        {isSale && (
-                          <span className="ml-2 rounded-full bg-brand-gold/20 px-2 py-0.5 text-xs font-medium text-brand-red">
-                            Sale
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">{sale.quantity}</td>
-                      <td className="px-4 py-3 text-brand-brown-light">
-                        {sale.leftover}
-                      </td>
-                      <td className="px-4 py-3">
-                        {formatMoney(sale.unitPrice.toString())}
-                      </td>
-                      <td className="px-4 py-3">
-                        {formatMoney(sale.totalAmount.toString())}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <form action={deleteSale.bind(null, sale.id)}>
-                          <SubmitButton
-                            spinnerClassName="h-3 w-3"
-                            className="text-xs font-medium text-red-600 hover:underline"
-                          >
-                            Delete
-                          </SubmitButton>
-                        </form>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </CollapsibleGroup>
-            ))}
-            <tfoot className="border-t-2 border-brand-tan bg-brand-cream">
-              <tr>
-                <td
-                  className="px-4 py-3 font-medium text-brand-brown"
-                  colSpan={4}
-                >
-                  Total (last {sales.length})
-                </td>
-                <td className="px-4 py-3 font-semibold text-brand-brown">
-                  {formatMoney(total)}
-                </td>
-                <td />
-              </tr>
-            </tfoot>
-          </table>
+          <SalesTable
+            groups={groups.map((group) => ({
+              ...group,
+              items: group.items.map((sale) => ({
+                id: sale.id,
+                quantity: sale.quantity,
+                leftover: sale.leftover,
+                unitPrice: sale.unitPrice.toString(),
+                totalAmount: sale.totalAmount.toString(),
+                foodItemName: sale.foodItem.name,
+                foodItemSellingPrice: sale.foodItem.sellingPrice.toString(),
+              })),
+            }))}
+            deleteAction={deleteSale}
+            totalLabel={`Total (last ${sales.length})`}
+            total={total}
+          />
         )}
       </section>
     </div>
