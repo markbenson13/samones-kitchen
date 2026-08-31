@@ -1,23 +1,27 @@
 import { prisma } from "@/lib/prisma";
 import { formatMoney, toNumber } from "@/lib/money";
 import { toDateInputValue, utcDateKey, formatGroupDate } from "@/lib/date";
+import { getDailyMenuByDate } from "@/lib/daily-menu";
 import { createSale, deleteSale } from "@/app/actions/sales";
 import { SaleForm } from "./sale-form";
+import { CollapsibleGroup } from "@/components/collapsible-group";
 
 export default async function SalesPage() {
-  const [sales, foodItems, leftoverAgg, orderedAgg] = await Promise.all([
-    prisma.sale.findMany({
-      orderBy: { date: "desc" },
-      include: { foodItem: true },
-      take: 100,
-    }),
-    prisma.foodItem.findMany({
-      where: { isActive: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.sale.aggregate({ _sum: { leftover: true } }),
-    prisma.order.aggregate({ _sum: { quantity: true } }),
-  ]);
+  const [sales, foodItems, leftoverAgg, orderedAgg, menuByDate] =
+    await Promise.all([
+      prisma.sale.findMany({
+        orderBy: { date: "desc" },
+        include: { foodItem: true },
+        take: 100,
+      }),
+      prisma.foodItem.findMany({
+        where: { isActive: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.sale.aggregate({ _sum: { leftover: true } }),
+      prisma.order.aggregate({ _sum: { quantity: true } }),
+      getDailyMenuByDate(),
+    ]);
 
   const total = sales.reduce(
     (sum, sale) => sum + toNumber(sale.totalAmount.toString()),
@@ -88,7 +92,8 @@ export default async function SalesPage() {
             </p>
             <SaleForm
               action={createSale}
-              foodItems={foodItems.map((item) => ({
+              menuByDate={menuByDate}
+              allFoodItems={foodItems.map((item) => ({
                 id: item.id,
                 name: item.name,
                 sellingPrice: item.sellingPrice.toString(),
@@ -117,22 +122,13 @@ export default async function SalesPage() {
               </tr>
             </thead>
             {groups.map((group) => (
-              <tbody
+              <CollapsibleGroup
                 key={group.key}
-                className="divide-y divide-brand-tan/60 border-t-2 border-brand-tan"
+                label={group.label}
+                labelColSpan={4}
+                subtotal={formatMoney(group.subtotal)}
+                trailingColSpan={1}
               >
-                <tr className="bg-brand-cream-dark/50">
-                  <td
-                    colSpan={4}
-                    className="px-4 py-2 text-sm font-semibold text-brand-brown"
-                  >
-                    {group.label}
-                  </td>
-                  <td className="px-4 py-2 text-sm font-semibold text-brand-brown">
-                    {formatMoney(group.subtotal)}
-                  </td>
-                  <td />
-                </tr>
                 {group.items.map((sale) => {
                   const isSale =
                     toNumber(sale.unitPrice.toString()) <
@@ -170,7 +166,7 @@ export default async function SalesPage() {
                     </tr>
                   );
                 })}
-              </tbody>
+              </CollapsibleGroup>
             ))}
             <tfoot className="border-t-2 border-brand-tan bg-brand-cream">
               <tr>

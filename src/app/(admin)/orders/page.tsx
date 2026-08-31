@@ -5,11 +5,15 @@ import {
   deleteOrder,
   toggleOrderPaymentStatus,
   toggleOrderDeliveryStatus,
+  updateOrderPaymentMode,
 } from "@/app/actions/orders";
-import { OrderForm } from "./order-form";
+import { addToDailyMenu, removeFromDailyMenu } from "@/app/actions/daily-menu";
+import { OrdersDayPanel } from "./orders-day-panel";
+import { PaymentModeSelect } from "./payment-mode-select";
+import { CollapsibleGroup } from "@/components/collapsible-group";
 
 export default async function OrdersPage() {
-  const [orders, foodItems, sales] = await Promise.all([
+  const [orders, foodItems, dailyMenuEntries] = await Promise.all([
     prisma.order.findMany({
       orderBy: { date: "desc" },
       include: { foodItem: true },
@@ -19,20 +23,27 @@ export default async function OrdersPage() {
       where: { isActive: true },
       orderBy: { name: "asc" },
     }),
-    prisma.sale.findMany({
-      select: { date: true, foodItem: { select: { id: true, name: true } } },
+    prisma.dailyMenu.findMany({
+      include: { foodItem: { select: { id: true, name: true } } },
     }),
   ]);
 
-  // "The menu for that day" = whichever food items were actually sold that
-  // day, so the Order dropdown only offers what's realistically available.
+  // "The menu for that day" = whatever's been explicitly added to that day's
+  // menu, so the Order checklist only offers what's realistically available —
+  // decoupled from Sale/MarketCost history.
   const menuByDate: Record<string, { id: string; name: string }[]> = {};
-  for (const sale of sales) {
-    const key = utcDateKey(sale.date);
-    const list = (menuByDate[key] ??= []);
-    if (!list.some((item) => item.id === sale.foodItem.id)) {
-      list.push(sale.foodItem);
-    }
+  const menuByDateForManager: Record<
+    string,
+    { dailyMenuId: string; id: string; name: string }[]
+  > = {};
+  for (const entry of dailyMenuEntries) {
+    const key = utcDateKey(entry.date);
+    (menuByDate[key] ??= []).push(entry.foodItem);
+    (menuByDateForManager[key] ??= []).push({
+      dailyMenuId: entry.id,
+      id: entry.foodItem.id,
+      name: entry.foodItem.name,
+    });
   }
 
   const groups: {
@@ -66,24 +77,19 @@ export default async function OrdersPage() {
         </p>
       </div>
 
-      <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-medium text-brand-brown">Add order</h2>
-        {foodItems.length === 0 ? (
-          <p className="mt-4 text-sm text-brand-brown-light">
-            Add an active food item first before recording an order.
-          </p>
-        ) : (
-          <OrderForm
-            action={createOrder}
-            menuByDate={menuByDate}
-            allFoodItems={foodItems.map((item) => ({
-              id: item.id,
-              name: item.name,
-            }))}
-            defaultDate={toDateInputValue(new Date())}
-          />
-        )}
-      </section>
+      <OrdersDayPanel
+        addMenuAction={addToDailyMenu}
+        removeMenuAction={removeFromDailyMenu}
+        menuByDateForManager={menuByDateForManager}
+        createOrderAction={createOrder}
+        menuByDateForOrder={menuByDate}
+        allFoodItems={foodItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+        }))}
+        allFoodItemNames={foodItems.map((item) => item.name)}
+        defaultDate={toDateInputValue(new Date())}
+      />
 
       <section className="overflow-hidden rounded-xl border border-brand-tan bg-white shadow-sm">
         {groups.length === 0 ? (
@@ -104,22 +110,13 @@ export default async function OrdersPage() {
               </tr>
             </thead>
             {groups.map((group) => (
-              <tbody
+              <CollapsibleGroup
                 key={group.key}
-                className="divide-y divide-brand-tan/60 border-t-2 border-brand-tan"
+                label={group.label}
+                labelColSpan={2}
+                subtotal={group.subtotal}
+                trailingColSpan={4}
               >
-                <tr className="bg-brand-cream-dark/50">
-                  <td
-                    colSpan={2}
-                    className="px-4 py-2 text-sm font-semibold text-brand-brown"
-                  >
-                    {group.label}
-                  </td>
-                  <td className="px-4 py-2 text-sm font-semibold text-brand-brown">
-                    {group.subtotal}
-                  </td>
-                  <td colSpan={4} />
-                </tr>
                 {group.items.map((order) => (
                   <tr key={order.id}>
                     <td className="px-4 py-3 font-medium text-brand-brown">
@@ -171,8 +168,11 @@ export default async function OrdersPage() {
                         </button>
                       </form>
                     </td>
-                    <td className="px-4 py-3 text-brand-brown-light">
-                      {order.paymentMode}
+                    <td className="px-4 py-3">
+                      <PaymentModeSelect
+                        action={updateOrderPaymentMode.bind(null, order.id)}
+                        defaultValue={order.paymentMode}
+                      />
                     </td>
                     <td className="px-4 py-3 text-right">
                       <form action={deleteOrder.bind(null, order.id)}>
@@ -186,7 +186,7 @@ export default async function OrdersPage() {
                     </td>
                   </tr>
                 ))}
-              </tbody>
+              </CollapsibleGroup>
             ))}
           </table>
         )}

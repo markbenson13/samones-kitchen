@@ -1,25 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { utcDateKey } from "@/lib/date";
 
 type FoodItemOption = { id: string; name: string; sellingPrice: string };
 
 export function SaleForm({
   action,
-  foodItems,
+  menuByDate,
+  allFoodItems,
   defaultDate,
 }: {
   action: (formData: FormData) => void | Promise<void>;
-  foodItems: FoodItemOption[];
+  menuByDate: Record<string, FoodItemOption[]>;
+  allFoodItems: FoodItemOption[];
   defaultDate: string;
 }) {
-  const [foodItemId, setFoodItemId] = useState(foodItems[0]?.id ?? "");
-  const [unitPrice, setUnitPrice] = useState(foodItems[0]?.sellingPrice ?? "");
+  const [date, setDate] = useState(defaultDate);
+
+  const options = useMemo(() => {
+    const key = utcDateKey(new Date(date));
+    return menuByDate[key] ?? allFoodItems;
+  }, [date, menuByDate, allFoodItems]);
+  const hasMenuForDay = !!menuByDate[utcDateKey(new Date(date))];
+
+  const [foodItemId, setFoodItemId] = useState(options[0]?.id ?? "");
+  const [unitPrice, setUnitPrice] = useState(options[0]?.sellingPrice ?? "");
 
   function handleFoodItemChange(id: string) {
     setFoodItemId(id);
-    const item = foodItems.find((f) => f.id === id);
+    const item = options.find((f) => f.id === id);
     if (item) setUnitPrice(item.sellingPrice);
+  }
+
+  function handleDateChange(value: string) {
+    setDate(value);
+    const key = utcDateKey(new Date(value));
+    const nextOptions = menuByDate[key] ?? allFoodItems;
+    if (!nextOptions.some((item) => item.id === foodItemId)) {
+      setFoodItemId(nextOptions[0]?.id ?? "");
+      setUnitPrice(nextOptions[0]?.sellingPrice ?? "");
+    }
   }
 
   return (
@@ -38,12 +59,17 @@ export function SaleForm({
           onChange={(e) => handleFoodItemChange(e.target.value)}
           className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
         >
-          {foodItems.map((item) => (
+          {options.map((item) => (
             <option key={item.id} value={item.id}>
               {item.name}
             </option>
           ))}
         </select>
+        <p className="mt-1 text-xs text-brand-brown-light">
+          {hasMenuForDay
+            ? "Showing this day's menu."
+            : "No menu set for this day yet — showing all active items."}
+        </p>
       </div>
 
       <div>
@@ -98,7 +124,8 @@ export function SaleForm({
         <input
           name="date"
           type="date"
-          defaultValue={defaultDate}
+          value={date}
+          onChange={(e) => handleDateChange(e.target.value)}
           className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
         />
       </div>

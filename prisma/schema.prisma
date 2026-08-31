@@ -25,8 +25,9 @@ model FoodItem {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  sales  Sale[]
-  orders Order[]
+  sales      Sale[]
+  orders     Order[]
+  dailyMenus DailyMenu[]
 }
 
 model MarketCost {
@@ -49,6 +50,19 @@ model Sale {
 
   foodItemId String
   foodItem   FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Restrict)
+}
+
+// Declares which food items are being offered on a given day, independent of
+// whether a Sale or MarketCost has been logged yet — the source of truth for
+// "what's on the menu today" used by the Sales and Orders food item pickers.
+model DailyMenu {
+  id         String   @id @default(cuid())
+  date       DateTime
+  foodItemId String
+  foodItem   FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([date, foodItemId])
 }
 
 model Order {
