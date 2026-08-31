@@ -9,6 +9,35 @@ async function requireAdmin() {
   if (!session) throw new Error("Unauthorized");
 }
 
+// Moves `amount` of "made" out of the regular-price row's own tally, down to
+// (but not below) what it's already sold — mirrors the same one-time
+// transfer done when a Sale-tagged order auto-creates a Sale row, but here
+// for a Sale row entered directly on this form.
+async function reduceRegularMade(foodItemId: string, date: Date, amount: number) {
+  const regular = await prisma.sale.findFirst({
+    where: { foodItemId, date, isSale: false },
+  });
+  if (!regular) return;
+  const newMade = Math.max(regular.quantity, regular.quantityMade - amount);
+  await prisma.sale.update({
+    where: { id: regular.id },
+    data: { quantityMade: newMade },
+  });
+}
+
+// The reverse of reduceRegularMade, for when a Sale-tagged row entered here
+// is deleted — restores what was transferred out of the regular row.
+async function restoreRegularMade(foodItemId: string, date: Date, amount: number) {
+  const regular = await prisma.sale.findFirst({
+    where: { foodItemId, date, isSale: false },
+  });
+  if (!regular) return;
+  await prisma.sale.update({
+    where: { id: regular.id },
+    data: { quantityMade: regular.quantityMade + amount },
+  });
+}
+
 export async function upsertSale(formData: FormData) {
   await requireAdmin();
 
@@ -58,6 +87,12 @@ export async function upsertSale(formData: FormData) {
     await prisma.sale.create({
       data: { foodItemId, quantityMade, quantity, unitPrice, totalAmount, isSale, date },
     });
+    // A brand-new Sale-tagged entry transfers its "made" out of that day's
+    // regular-price row (if any), so its own leftover reads 0 — matching the
+    // same one-time transfer Orders does when a Sale order auto-creates one.
+    if (isSale) {
+      await reduceRegularMade(foodItemId, date, quantityMade);
+    }
   }
 
   revalidatePath("/sales");
@@ -66,7 +101,10 @@ export async function upsertSale(formData: FormData) {
 
 export async function deleteSale(id: string) {
   await requireAdmin();
-  await prisma.sale.delete({ where: { id } });
+  const sale = await prisma.sale.delete({ where: { id } });
+  if (sale.isSale) {
+    await restoreRegularMade(sale.foodItemId, sale.date, sale.quantityMade);
+  }
   revalidatePath("/sales");
   revalidatePath("/dashboard");
 }
@@ -74,7 +112,15 @@ export async function deleteSale(id: string) {
 export async function deleteSales(ids: string[]) {
   await requireAdmin();
   if (ids.length === 0) return;
+  // Fetched before deleting so any Sale-tagged rows' transfer can be
+  // restored to the regular row it came out of.
+  const sales = await prisma.sale.findMany({ where: { id: { in: ids } } });
   await prisma.sale.deleteMany({ where: { id: { in: ids } } });
+  for (const sale of sales) {
+    if (sale.isSale) {
+      await restoreRegularMade(sale.foodItemId, sale.date, sale.quantityMade);
+    }
+  }
   revalidatePath("/sales");
   revalidatePath("/dashboard");
 }
