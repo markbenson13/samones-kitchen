@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { toDateInputValue, utcDateKey, formatGroupDate } from "@/lib/date";
 import { toNumber } from "@/lib/money";
@@ -13,20 +14,33 @@ import { addToDailyMenu, removeFromDailyMenu } from "@/app/actions/daily-menu";
 import { OrdersDayPanel } from "./orders-day-panel";
 import { OrdersTable } from "./orders-table";
 import { Pagination } from "@/components/pagination";
+import { SubmitButton } from "@/components/submit-button";
 
 const PAGE_SIZE = 25;
 
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; payment?: string; delivery?: string }>;
 }) {
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, payment: paymentParam, delivery: deliveryParam } =
+    await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
+  const payment =
+    paymentParam === "Paid" || paymentParam === "Unpaid" ? paymentParam : undefined;
+  const delivery =
+    deliveryParam === "Delivered" || deliveryParam === "Pending"
+      ? deliveryParam
+      : undefined;
+  const where = {
+    ...(payment ? { paymentStatus: payment } : {}),
+    ...(delivery ? { deliveryStatus: delivery } : {}),
+  };
 
   const [orders, ordersCount, customerNameRows, foodItems, dailyMenuEntries] =
     await Promise.all([
       prisma.order.findMany({
+        where,
         // Most recently placed first within a day; orderGroupId is just a
         // tiebreaker so every row sharing one still lands contiguously
         // (required for the batching below) — it's a random UUID, not
@@ -36,7 +50,7 @@ export default async function OrdersPage({
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
       }),
-      prisma.order.count(),
+      prisma.order.count({ where }),
       // Unpaginated — the "Add order" form's customer autocomplete should
       // offer every customer ever ordered from, not just this page's.
       prisma.order.findMany({
@@ -168,10 +182,55 @@ export default async function OrdersPage({
         defaultDate={toDateInputValue(new Date())}
       />
 
+      <form className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-xs font-medium text-brand-brown-light">
+            Payment
+          </label>
+          <select
+            name="payment"
+            defaultValue={payment ?? "All"}
+            className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
+          >
+            <option value="All">All</option>
+            <option value="Paid">Paid</option>
+            <option value="Unpaid">Unpaid</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-brand-brown-light">
+            Delivery
+          </label>
+          <select
+            name="delivery"
+            defaultValue={delivery ?? "All"}
+            className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
+          >
+            <option value="All">All</option>
+            <option value="Delivered">Delivered</option>
+            <option value="Pending">Pending</option>
+          </select>
+        </div>
+        <SubmitButton
+          pendingText="Applying…"
+          className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
+        >
+          Apply
+        </SubmitButton>
+        <Link
+          href="/orders"
+          className="rounded-md border border-brand-tan px-4 py-2 text-sm font-medium text-brand-brown hover:bg-brand-cream"
+        >
+          Reset
+        </Link>
+      </form>
+
       <section className="overflow-hidden rounded-xl border border-brand-tan bg-white shadow-sm">
         {groups.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-brand-brown-light">
-            No orders recorded yet.
+            {payment || delivery
+              ? "No orders match this filter."
+              : "No orders recorded yet."}
           </p>
         ) : (
           <OrdersTable
@@ -186,7 +245,12 @@ export default async function OrdersPage({
         <Pagination
           page={page}
           totalPages={totalPages}
-          buildHref={(p) => `/orders?page=${p}`}
+          buildHref={(p) => {
+            const params = new URLSearchParams({ page: String(p) });
+            if (payment) params.set("payment", payment);
+            if (delivery) params.set("delivery", delivery);
+            return `/orders?${params.toString()}`;
+          }}
         />
       </section>
     </div>

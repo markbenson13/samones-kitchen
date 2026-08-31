@@ -39,25 +39,37 @@ export default async function DashboardPage({
 
   const dateRangeWhere = { date: { gte: fromDate, lt: toDateExclusive } };
 
-  const [sales, costs, expenses, topItemGroups] = await Promise.all([
-    prisma.sale.findMany({
-      where: dateRangeWhere,
-      select: { date: true, totalAmount: true },
-    }),
-    prisma.marketCost.findMany({
-      where: dateRangeWhere,
-      select: { date: true, amount: true },
-    }),
-    prisma.expense.findMany({
-      where: dateRangeWhere,
-      select: { date: true, amount: true },
-    }),
-    prisma.sale.groupBy({
-      by: ["foodItemId"],
-      where: dateRangeWhere,
-      _sum: { totalAmount: true, quantity: true },
-    }),
-  ]);
+  const [sales, costs, expenses, topItemGroups, unpaidRows, pendingRows] =
+    await Promise.all([
+      prisma.sale.findMany({
+        where: dateRangeWhere,
+        select: { date: true, totalAmount: true },
+      }),
+      prisma.marketCost.findMany({
+        where: dateRangeWhere,
+        select: { date: true, amount: true },
+      }),
+      prisma.expense.findMany({
+        where: dateRangeWhere,
+        select: { date: true, amount: true },
+      }),
+      prisma.sale.groupBy({
+        by: ["foodItemId"],
+        where: dateRangeWhere,
+        _sum: { totalAmount: true, quantity: true },
+      }),
+      // All-time, deliberately not date-scoped — "unpaid" is a current-state
+      // flag, not a period metric. An order from weeks ago is still owed
+      // today regardless of what range is selected above.
+      prisma.order.findMany({
+        where: { paymentStatus: "Unpaid" },
+        select: { id: true, orderGroupId: true, quantity: true, unitPrice: true },
+      }),
+      prisma.order.findMany({
+        where: { deliveryStatus: "Pending" },
+        select: { id: true, orderGroupId: true },
+      }),
+    ]);
 
   const totalSales = sales.reduce(
     (sum, sale) => sum + toNumber(sale.totalAmount.toString()),
@@ -73,26 +85,37 @@ export default async function DashboardPage({
   );
   const netIncome = totalSales - totalCosts - totalExpenses;
 
-  const topItemAgg = topItemGroups.reduce<(typeof topItemGroups)[number] | null>(
-    (best, group) => {
-      const revenue = toNumber(group._sum.totalAmount?.toString() ?? "0");
-      const bestRevenue = best
-        ? toNumber(best._sum.totalAmount?.toString() ?? "0")
-        : -Infinity;
-      return revenue > bestRevenue ? group : best;
-    },
-    null
+  // Batches (orderGroupId ?? id) are deduped in JS, not via Prisma groupBy —
+  // groupBy would collapse every legacy orderGroupId:null row into one
+  // group, undercounting. The ₱ total sums every matching row (a money
+  // total, not a batch metric), so it isn't deduped.
+  const unpaidBatchKeys = new Set(unpaidRows.map((r) => r.orderGroupId ?? r.id));
+  const unpaidCount = unpaidBatchKeys.size;
+  const unpaidTotal = unpaidRows.reduce(
+    (sum, r) => sum + r.quantity * toNumber(r.unitPrice.toString()),
+    0
   );
-  const topFoodItem = topItemAgg
-    ? await prisma.foodItem.findUnique({
-        where: { id: topItemAgg.foodItemId },
-        select: { name: true },
-      })
-    : null;
-  const topFoodItemRevenue = topItemAgg
-    ? toNumber(topItemAgg._sum.totalAmount?.toString() ?? "0")
-    : 0;
-  const topFoodItemQuantity = topItemAgg?._sum.quantity ?? 0;
+  const pendingCount = new Set(pendingRows.map((r) => r.orderGroupId ?? r.id))
+    .size;
+
+  const topTenGroups = [...topItemGroups]
+    .sort(
+      (a, b) =>
+        toNumber(b._sum.totalAmount?.toString() ?? "0") -
+        toNumber(a._sum.totalAmount?.toString() ?? "0")
+    )
+    .slice(0, 10);
+  const topTenFoodItems = await prisma.foodItem.findMany({
+    where: { id: { in: topTenGroups.map((g) => g.foodItemId) } },
+    select: { id: true, name: true },
+  });
+  const nameById = new Map(topTenFoodItems.map((f) => [f.id, f.name]));
+  const topTen = topTenGroups.map((group) => ({
+    id: group.foodItemId,
+    name: nameById.get(group.foodItemId) ?? "Unknown item",
+    revenue: toNumber(group._sum.totalAmount?.toString() ?? "0"),
+    quantity: group._sum.quantity ?? 0,
+  }));
 
   const salesByDay = new Map<string, number>();
   for (const sale of sales) {
@@ -183,7 +206,7 @@ export default async function DashboardPage({
         </Link>
       </form>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total sales" value={formatMoney(totalSales)} />
         <StatCard label="Total market costs" value={formatMoney(totalCosts)} />
         <StatCard label="Total expenses" value={formatMoney(totalExpenses)} />
@@ -193,25 +216,68 @@ export default async function DashboardPage({
           subtitle="Sales − market costs − expenses"
           tone={netIncome >= 0 ? "positive" : "negative"}
         />
-        <StatCard
-          label="Top food item"
-          value={topFoodItem?.name ?? "No sales yet"}
-          subtitle={
-            topFoodItem
-              ? `${formatMoney(topFoodItemRevenue)} · ${topFoodItemQuantity} sold`
-              : undefined
-          }
-        />
       </div>
 
-      <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-medium text-brand-brown">
-          {formatRangeDate(fromDate)} – {formatRangeDate(toDate)}
-        </h2>
-        <div className="mt-4 h-72">
-          <IncomeChart data={chartData} />
-        </div>
-      </section>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Link href="/orders?payment=Unpaid" className="block">
+          <StatCard
+            label="Unpaid orders"
+            value={`${unpaidCount} order${unpaidCount === 1 ? "" : "s"}`}
+            subtitle={`${formatMoney(unpaidTotal)} owed · all-time`}
+            tone={unpaidCount > 0 ? "negative" : "neutral"}
+          />
+        </Link>
+        <Link href="/orders?delivery=Pending" className="block">
+          <StatCard
+            label="Pending deliveries"
+            value={`${pendingCount} order${pendingCount === 1 ? "" : "s"}`}
+            subtitle="All-time"
+            tone="neutral"
+          />
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm lg:col-span-2">
+          <h2 className="text-sm font-medium text-brand-brown">
+            {formatRangeDate(fromDate)} – {formatRangeDate(toDate)}
+          </h2>
+          <div className="mt-4 h-72">
+            <IncomeChart data={chartData} />
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
+          <h2 className="text-sm font-medium text-brand-brown">
+            Top 10 food items
+          </h2>
+          <p className="mt-1 text-xs text-brand-brown-light">By revenue, this range.</p>
+          {topTen.length === 0 ? (
+            <p className="mt-4 text-sm text-brand-brown-light">No sales yet.</p>
+          ) : (
+            <ol className="mt-4 space-y-3">
+              {topTen.map((item, i) => (
+                <li key={item.id} className="flex items-center gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-cream text-xs font-semibold text-brand-brown">
+                    {i + 1}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-brand-brown">
+                    {item.name}
+                  </span>
+                  <span className="shrink-0 text-right text-sm">
+                    <span className="font-medium text-brand-brown">
+                      {formatMoney(item.revenue)}
+                    </span>
+                    <span className="ml-1.5 text-xs text-brand-brown-light">
+                      {item.quantity} sold
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
