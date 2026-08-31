@@ -32,12 +32,12 @@ export function UserMenu({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-brand-brown hover:bg-brand-cream"
+        className="flex w-full items-center justify-between gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-brand-brown hover:bg-brand-cream"
       >
         {name}
         <svg
-          className={`h-4 w-4 text-brand-brown-light transition-transform ${
-            open ? "rotate-180" : ""
+          className={`h-4 w-4 shrink-0 text-brand-brown-light transition-transform ${
+            open ? "" : "rotate-180"
           }`}
           viewBox="0 0 20 20"
           fill="currentColor"
@@ -52,7 +52,7 @@ export function UserMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 z-10 mt-1 w-56 rounded-md border border-brand-tan bg-white text-sm shadow-lg">
+        <div className="absolute bottom-full left-0 z-10 mb-1 w-full min-w-56 rounded-md border border-brand-tan bg-white text-sm shadow-lg">
           <div className="border-b border-brand-tan px-4 py-3">
             <p className="truncate font-medium text-brand-brown">{email}</p>
             <p className="mt-0.5 text-xs text-brand-brown-light">{name}</p>
