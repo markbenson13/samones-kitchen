@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { approveUser, removeUser } from "@/app/actions/users";
+import { approveUser, removeUser, resetUserPassword } from "@/app/actions/users";
 import { UsersSection } from "./users-section";
 
 export default async function UsersPage() {
@@ -38,6 +38,7 @@ export default async function UsersPage() {
         currentUserEmail={session?.user?.email ?? null}
         approveAction={approveUser}
         removeAction={removeUser}
+        resetPasswordAction={resetUserPassword}
       />
     </div>
   );
