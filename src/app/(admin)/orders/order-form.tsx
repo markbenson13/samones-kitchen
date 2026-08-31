@@ -2,8 +2,9 @@
 
 import { useMemo, useRef, useState } from "react";
 import { utcDateKey } from "@/lib/date";
-import { toNumber, formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { SubmitButton } from "@/components/submit-button";
+import { Combobox } from "@/components/combobox";
 
 type FoodItemOption = { id: string; name: string; sellingPrice: string };
 
@@ -13,11 +14,13 @@ export function OrderForm({
   action,
   menuByDate,
   allFoodItems,
+  allCustomerNames,
   date,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   menuByDate: Record<string, FoodItemOption[]>;
   allFoodItems: FoodItemOption[];
+  allCustomerNames: string[];
   date: string;
 }) {
   const options = useMemo(() => {
@@ -27,17 +30,28 @@ export function OrderForm({
 
   const hasMenuForDay = !!menuByDate[utcDateKey(new Date(date))];
 
-  // Tracks checked item + quantity so the running total can be shown live,
-  // without turning every checkbox/quantity input into a controlled field.
-  const [selections, setSelections] = useState<Record<string, number>>({});
+  const [customerName, setCustomerName] = useState("");
+
+  // Tracks checked item + quantity + price so the running total can be shown
+  // live, without turning every checkbox/quantity/price input into a
+  // controlled field.
+  const [selections, setSelections] = useState<
+    Record<string, { quantity: number; price: number }>
+  >({});
+  // Price is only editable once "Sale" is checked for that item — otherwise
+  // it's locked to the item's normal selling price, so a price can't be
+  // changed by accident.
+  const [saleChecked, setSaleChecked] = useState<Record<string, boolean>>({});
   const quantityInputs = useRef<Record<string, HTMLInputElement | null>>({});
+  const priceInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   function handleCheckedChange(itemId: string, checked: boolean) {
     setSelections((prev) => {
       const next = { ...prev };
       if (checked) {
         const quantity = Number(quantityInputs.current[itemId]?.value) || 1;
-        next[itemId] = quantity;
+        const price = Number(priceInputs.current[itemId]?.value) || 0;
+        next[itemId] = { quantity, price };
       } else {
         delete next[itemId];
       }
@@ -45,33 +59,58 @@ export function OrderForm({
     });
   }
 
+  function handleSaleToggle(itemId: string, checked: boolean, normalPrice: string) {
+    setSaleChecked((prev) => ({ ...prev, [itemId]: checked }));
+    if (!checked) {
+      const input = priceInputs.current[itemId];
+      if (input) input.value = normalPrice;
+      handlePriceChange(itemId, Number(normalPrice) || 0);
+    }
+  }
+
   function handleQuantityChange(itemId: string, quantity: number) {
     setSelections((prev) =>
-      itemId in prev ? { ...prev, [itemId]: quantity } : prev
+      itemId in prev ? { ...prev, [itemId]: { ...prev[itemId], quantity } } : prev
     );
   }
 
-  const total = options.reduce((sum, item) => {
-    const quantity = selections[item.id];
-    if (!quantity) return sum;
-    return sum + toNumber(item.sellingPrice) * quantity;
-  }, 0);
+  function handlePriceChange(itemId: string, price: number) {
+    setSelections((prev) =>
+      itemId in prev ? { ...prev, [itemId]: { ...prev[itemId], price } } : prev
+    );
+  }
+
+  const total = Object.values(selections).reduce(
+    (sum, { quantity, price }) => sum + quantity * price,
+    0
+  );
 
   return (
-    <form action={action} className="mt-4 space-y-4">
+    <form
+      action={async (formData) => {
+        await action(formData);
+        setCustomerName("");
+        setSelections({});
+        setSaleChecked({});
+      }}
+      className="mt-4 space-y-4"
+    >
       <input type="hidden" name="date" value={date} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="lg:col-span-2">
           <label className="block text-xs font-medium text-brand-brown-light">
             Customer name / unit
           </label>
-          <input
-            name="customerName"
-            type="text"
-            required
-            placeholder="e.g. Juan Dela Cruz / Unit 4B"
-            className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
-          />
+          <div className="mt-1">
+            <Combobox
+              name="customerName"
+              required
+              placeholder="e.g. Juan Dela Cruz / Unit 4B"
+              value={customerName}
+              onChange={setCustomerName}
+              options={allCustomerNames}
+            />
+          </div>
         </div>
         <div>
           <label className="block text-xs font-medium text-brand-brown-light">
@@ -142,23 +181,66 @@ export function OrderForm({
                 />
                 <span className="text-brand-brown">{item.name}</span>
               </span>
-              <input
-                type="number"
-                name={`quantity_${item.id}`}
-                min="1"
-                step="1"
-                defaultValue={1}
-                ref={(el) => {
-                  quantityInputs.current[item.id] = el;
-                }}
-                onChange={(e) =>
-                  handleQuantityChange(item.id, Number(e.target.value) || 1)
-                }
-                className="w-20 rounded-md border border-brand-tan px-2 py-1 text-sm"
-              />
+              <span className="flex items-center gap-2">
+                <input
+                  type="number"
+                  name={`quantity_${item.id}`}
+                  min="1"
+                  step="1"
+                  defaultValue={1}
+                  ref={(el) => {
+                    quantityInputs.current[item.id] = el;
+                  }}
+                  onChange={(e) =>
+                    handleQuantityChange(item.id, Number(e.target.value) || 1)
+                  }
+                  className="w-16 rounded-md border border-brand-tan px-2 py-1 text-sm"
+                  title="Quantity"
+                />
+                <label
+                  className="flex items-center gap-1 text-[11px] text-brand-brown-light"
+                  title="Check to sell this item at a discounted price"
+                >
+                  <input
+                    type="checkbox"
+                    name={`sale_${item.id}`}
+                    checked={!!saleChecked[item.id]}
+                    onChange={(e) =>
+                      handleSaleToggle(item.id, e.target.checked, item.sellingPrice)
+                    }
+                    className="h-3.5 w-3.5 rounded border-brand-tan text-brand-gold focus:ring-brand-gold"
+                  />
+                  Sale
+                </label>
+                <input
+                  type="number"
+                  name={`price_${item.id}`}
+                  min="0"
+                  step="0.01"
+                  defaultValue={item.sellingPrice}
+                  disabled={!saleChecked[item.id]}
+                  ref={(el) => {
+                    priceInputs.current[item.id] = el;
+                  }}
+                  onChange={(e) =>
+                    handlePriceChange(item.id, Number(e.target.value) || 0)
+                  }
+                  className="w-24 rounded-md border border-brand-tan px-2 py-1 text-sm disabled:bg-brand-cream disabled:text-brand-brown-light"
+                  title={
+                    saleChecked[item.id]
+                      ? "Sale price for this order"
+                      : "Check \"Sale\" to lower this item's price for this order"
+                  }
+                />
+              </span>
             </label>
           ))}
         </div>
+        <p className="mt-1 text-xs text-brand-brown-light">
+          Check &quot;Sale&quot; next to an item to lower its price for this
+          order — the item&apos;s own selling price is unaffected, and a
+          &quot;Sale&quot; badge marks the order as sold at a discount.
+        </p>
         <p className="mt-2 text-right text-sm font-medium text-brand-brown">
           Total: {formatMoney(total)}
         </p>

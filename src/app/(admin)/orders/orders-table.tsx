@@ -19,6 +19,7 @@ type OrderItemRow = {
   foodItemName: string;
   quantity: number;
   totalAmount: number;
+  isSale: boolean;
 };
 
 type Batch = {
@@ -254,6 +255,11 @@ export function OrdersTable({
                   <td />
                   <td className="px-4 py-3 pl-8 text-brand-brown-light">
                     {order.foodItemName}
+                    {order.isSale && (
+                      <span className="ml-2 rounded-full bg-brand-gold/20 px-2 py-0.5 text-xs font-medium text-brand-red">
+                        Sale
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3">{order.quantity}</td>
                   <td className="px-4 py-3 text-brand-brown-light">

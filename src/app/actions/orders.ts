@@ -39,7 +39,21 @@ export async function createOrder(formData: FormData) {
     if (!Number.isInteger(quantity) || quantity <= 0) {
       throw new Error("Invalid quantity for one of the selected items");
     }
-    return { foodItemId, quantity };
+    // The price input is only enabled (and submitted) when "Sale" is
+    // checked for this item, so its presence alone implies a discount.
+    const isSale = formData.get(`sale_${foodItemId}`) === "on";
+    const priceInput = formData.get(`price_${foodItemId}`);
+    const unitPriceOverride =
+      isSale && priceInput !== null && priceInput !== ""
+        ? Number(priceInput)
+        : null;
+    if (unitPriceOverride !== null && !Number.isFinite(unitPriceOverride)) {
+      throw new Error("Invalid unit price for one of the selected items");
+    }
+    if (unitPriceOverride !== null && unitPriceOverride < 0) {
+      throw new Error("Unit price cannot be negative");
+    }
+    return { foodItemId, quantity, unitPriceOverride, isSale };
   });
 
   const foodItems = await prisma.foodItem.findMany({
@@ -54,13 +68,15 @@ export async function createOrder(formData: FormData) {
   const orderGroupId = randomUUID();
 
   await prisma.order.createMany({
-    data: items.map(({ foodItemId, quantity }) => ({
+    data: items.map(({ foodItemId, quantity, unitPriceOverride, isSale }) => ({
       customerName,
       foodItemId,
       quantity,
-      // Snapshot the price now, so a later change to the food item's selling
-      // price doesn't retroactively change this order's total.
-      unitPrice: priceById.get(foodItemId)!,
+      // Snapshot the price now (the current selling price, unless overridden
+      // for a discounted/sale item), so a later change to the food item's
+      // selling price doesn't retroactively change this order's total.
+      unitPrice: unitPriceOverride ?? priceById.get(foodItemId)!,
+      isSale,
       paymentStatus,
       deliveryStatus,
       paymentMode,

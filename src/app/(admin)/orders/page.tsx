@@ -24,26 +24,35 @@ export default async function OrdersPage({
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
 
-  const [orders, ordersCount, foodItems, dailyMenuEntries] = await Promise.all([
-    prisma.order.findMany({
-      // Secondary sort by orderGroupId so every row sharing one guarantees
-      // to land contiguously — required for batchesFor() below.
-      orderBy: [{ date: "desc" }, { orderGroupId: "desc" }],
-      include: { foodItem: true },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-    }),
-    prisma.order.count(),
-    prisma.foodItem.findMany({
-      where: { isActive: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.dailyMenu.findMany({
-      include: {
-        foodItem: { select: { id: true, name: true, sellingPrice: true } },
-      },
-    }),
-  ]);
+  const [orders, ordersCount, customerNameRows, foodItems, dailyMenuEntries] =
+    await Promise.all([
+      prisma.order.findMany({
+        // Secondary sort by orderGroupId so every row sharing one guarantees
+        // to land contiguously — required for batchesFor() below.
+        orderBy: [{ date: "desc" }, { orderGroupId: "desc" }],
+        include: { foodItem: true },
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+      }),
+      prisma.order.count(),
+      // Unpaginated — the "Add order" form's customer autocomplete should
+      // offer every customer ever ordered from, not just this page's.
+      prisma.order.findMany({
+        distinct: ["customerName"],
+        select: { customerName: true },
+        orderBy: { customerName: "asc" },
+      }),
+      prisma.foodItem.findMany({
+        where: { isActive: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.dailyMenu.findMany({
+        include: {
+          foodItem: { select: { id: true, name: true, sellingPrice: true } },
+        },
+      }),
+    ]);
+  const allCustomerNames = customerNameRows.map((o) => o.customerName);
 
   const totalPages = Math.max(1, Math.ceil(ordersCount / PAGE_SIZE));
 
@@ -91,6 +100,7 @@ export default async function OrdersPage({
         foodItemName: string;
         quantity: number;
         totalAmount: number;
+        isSale: boolean;
       }[];
     }[];
   }[] = [];
@@ -127,6 +137,7 @@ export default async function OrdersPage({
       foodItemName: order.foodItem.name,
       quantity: order.quantity,
       totalAmount: itemTotal,
+      isSale: order.isSale,
     });
   }
 
@@ -151,6 +162,7 @@ export default async function OrdersPage({
           sellingPrice: item.sellingPrice.toString(),
         }))}
         allFoodItemNames={foodItems.map((item) => item.name)}
+        allCustomerNames={allCustomerNames}
         defaultDate={toDateInputValue(new Date())}
       />
 

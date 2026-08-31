@@ -42,16 +42,20 @@ model MarketCost {
 model Sale {
   id          String   @id @default(cuid())
   date        DateTime @default(now())
-  // Kept for historical rows recorded before quantityMade existed; no longer
-  // written to. Leftover/Total are now derived live from quantityMade and
-  // whatever's currently ordered for this food item and date, instead of a
-  // stored sold-quantity snapshot.
+  // Quantity sold — entered directly on the Sales form, independent of
+  // Orders. Leftover is derived as quantityMade - quantity.
   quantity    Int      @default(0)
+  // Kept for historical rows recorded before quantityMade existed; unused.
   leftover    Int      @default(0)
   // Total tubs made of this item on this date.
   quantityMade Int     @default(0)
   unitPrice   Decimal  @db.Decimal(10, 2)
   totalAmount Decimal  @db.Decimal(10, 2)
+  // Explicitly flagged (not inferred from price) so the "Sale" badge stays
+  // correct even if the food item's normal price changes later, and a
+  // second, sale-flagged row for the same item/date can coexist with a
+  // regular one (e.g. today's leftovers sold off at a discount).
+  isSale      Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   foodItemId String
@@ -80,6 +84,9 @@ model Order {
   // so a later price change on the food item doesn't retroactively change
   // the total for orders already recorded.
   unitPrice      Decimal  @default(0) @db.Decimal(10, 2)
+  // Explicitly flagged (not inferred from price) so the "Sale" badge stays
+  // correct even if the food item's normal price changes later.
+  isSale         Boolean  @default(false)
   paymentStatus  String   @default("Unpaid")
   deliveryStatus String   @default("Pending")
   paymentMode    String

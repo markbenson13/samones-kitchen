@@ -16,6 +16,7 @@ export function OrdersDayPanel({
   menuByDateForOrder,
   allFoodItems,
   allFoodItemNames,
+  allCustomerNames,
   defaultDate,
 }: {
   addMenuAction: (formData: FormData) => void | Promise<void>;
@@ -25,6 +26,7 @@ export function OrdersDayPanel({
   menuByDateForOrder: Record<string, OrderMenuItem[]>;
   allFoodItems: OrderMenuItem[];
   allFoodItemNames: string[];
+  allCustomerNames: string[];
   defaultDate: string;
 }) {
   const [date, setDate] = useState(defaultDate);
@@ -65,6 +67,7 @@ export function OrdersDayPanel({
             action={createOrderAction}
             menuByDate={menuByDateForOrder}
             allFoodItems={allFoodItems}
+            allCustomerNames={allCustomerNames}
             date={date}
           />
         )}
