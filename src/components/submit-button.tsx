@@ -1,8 +1,9 @@
 "use client";
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { useEffect, useId, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { Spinner } from "./spinner";
+import { useLoadingReport } from "./loading-overlay";
 
 export function SubmitButton({
   children,
@@ -20,6 +21,13 @@ export function SubmitButton({
   "type" | "className" | "children" | "disabled"
 >) {
   const { pending } = useFormStatus();
+  const report = useLoadingReport();
+  const id = useId();
+
+  useEffect(() => {
+    report(id, pending);
+    return () => report(id, false);
+  }, [report, id, pending]);
 
   return (
     <button

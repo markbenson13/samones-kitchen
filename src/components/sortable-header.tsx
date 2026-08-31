@@ -25,8 +25,12 @@ export function SortableHeader<K extends string>({
         className="flex items-center gap-1 hover:text-brand-red"
       >
         {label}
-        <span className="w-2.5 text-[10px] leading-none">
-          {isActive ? (currentSort.dir === "asc" ? "▲" : "▼") : ""}
+        <span
+          className={`text-xs leading-none ${
+            isActive ? "text-brand-red" : "text-brand-brown-light/50"
+          }`}
+        >
+          {isActive ? (currentSort.dir === "asc" ? "▲" : "▼") : "⇅"}
         </span>
       </button>
     </th>
