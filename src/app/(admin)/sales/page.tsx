@@ -16,7 +16,7 @@ export default async function SalesPage({
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
 
-  const [sales, salesCount, foodItems, orders, menuByDate] = await Promise.all([
+  const [sales, salesCount, foodItems, menuByDate] = await Promise.all([
     prisma.sale.findMany({
       orderBy: { date: "desc" },
       include: { foodItem: true },
@@ -28,33 +28,14 @@ export default async function SalesPage({
       where: { isActive: true },
       orderBy: { name: "asc" },
     }),
-    prisma.order.findMany({ select: { foodItemId: true, date: true, quantity: true } }),
     getDailyMenuByDate(),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(salesCount / PAGE_SIZE));
 
-  // Leftover/Total are derived live from whatever's currently ordered for a
-  // food item on a date, rather than a stored sold-quantity snapshot — so
-  // they stay accurate even if orders are added/removed after the sale was
-  // recorded.
-  const orderedByItemAndDay = new Map<string, number>();
-  for (const order of orders) {
-    const key = `${order.foodItemId}::${utcDateKey(order.date)}`;
-    orderedByItemAndDay.set(
-      key,
-      (orderedByItemAndDay.get(key) ?? 0) + order.quantity
-    );
-  }
-
   function computeLeftoverAndTotal(sale: (typeof sales)[number]) {
-    const ordered =
-      orderedByItemAndDay.get(
-        `${sale.foodItemId}::${utcDateKey(sale.date)}`
-      ) ?? 0;
-    const leftover = sale.quantityMade - ordered;
-    const totalAmount =
-      (sale.quantityMade - leftover) * toNumber(sale.unitPrice.toString());
+    const leftover = sale.quantityMade - sale.quantity;
+    const totalAmount = sale.quantity * toNumber(sale.unitPrice.toString());
     return { leftover, totalAmount };
   }
 
@@ -112,11 +93,12 @@ export default async function SalesPage({
               id: sale.id,
               foodItemId: sale.foodItemId,
               quantityMade: sale.quantityMade,
+              quantity: sale.quantity,
               leftover,
               unitPrice: sale.unitPrice.toString(),
               totalAmount: totalAmount.toString(),
+              isSale: sale.isSale,
               foodItemName: sale.foodItem.name,
-              foodItemSellingPrice: sale.foodItem.sellingPrice.toString(),
               date: utcDateKey(sale.date),
             };
           }),

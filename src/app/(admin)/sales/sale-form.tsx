@@ -11,7 +11,9 @@ export type EditingSale = {
   id: string;
   foodItemId: string;
   quantityMade: number;
+  quantity: number;
   unitPrice: string;
+  isSale: boolean;
   date: string;
 };
 
@@ -42,6 +44,10 @@ export function SaleForm({
   const [foodItemId, setFoodItemId] = useState(options[0]?.id ?? "");
   const [unitPrice, setUnitPrice] = useState(options[0]?.sellingPrice ?? "");
   const [quantityMade, setQuantityMade] = useState("");
+  const [quantity, setQuantity] = useState("");
+  // Price is only editable once "Sale" is checked — otherwise it's locked to
+  // the item's normal selling price.
+  const [isSale, setIsSale] = useState(false);
 
   // Load the selected row into the form when an edit is requested.
   const [syncedEditingSale, setSyncedEditingSale] = useState(editingSale);
@@ -51,13 +57,23 @@ export function SaleForm({
     setFoodItemId(editingSale.foodItemId);
     setUnitPrice(editingSale.unitPrice);
     setQuantityMade(String(editingSale.quantityMade));
+    setQuantity(String(editingSale.quantity));
+    setIsSale(editingSale.isSale);
     setDate(editingSale.date);
   }
 
   function handleFoodItemChange(id: string) {
     setFoodItemId(id);
     const item = options.find((f) => f.id === id);
-    if (item) setUnitPrice(item.sellingPrice);
+    if (item && !isSale) setUnitPrice(item.sellingPrice);
+  }
+
+  function handleSaleToggle(checked: boolean) {
+    setIsSale(checked);
+    if (!checked) {
+      const item = options.find((f) => f.id === foodItemId);
+      setUnitPrice(item?.sellingPrice ?? "");
+    }
   }
 
   function handleDateChange(value: string) {
@@ -75,6 +91,8 @@ export function SaleForm({
     setFoodItemId(options[0]?.id ?? "");
     setUnitPrice(options[0]?.sellingPrice ?? "");
     setQuantityMade("");
+    setQuantity("");
+    setIsSale(false);
     setDate(defaultDate);
     onCancelEdit?.();
   }
@@ -85,7 +103,7 @@ export function SaleForm({
         await action(formData);
         resetForm();
       }}
-      className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
+      className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6"
     >
       <input type="hidden" name="id" value={id} />
       <div className="lg:col-span-2">
@@ -130,7 +148,33 @@ export function SaleForm({
 
       <div>
         <label className="block text-xs font-medium text-brand-brown-light">
+          Sold
+        </label>
+        <input
+          name="quantity"
+          type="number"
+          step="1"
+          min="0"
+          required
+          value={quantity}
+          onChange={(e) => setQuantity(e.target.value)}
+          className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
+        />
+      </div>
+
+      <div>
+        <label className="flex items-center justify-between text-xs font-medium text-brand-brown-light">
           Unit price
+          <span className="flex items-center gap-1 font-normal">
+            <input
+              type="checkbox"
+              name="isSale"
+              checked={isSale}
+              onChange={(e) => handleSaleToggle(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-brand-tan text-brand-gold focus:ring-brand-gold"
+            />
+            Sale
+          </span>
         </label>
         <input
           name="unitPrice"
@@ -138,9 +182,11 @@ export function SaleForm({
           step="0.01"
           min="0"
           required
+          disabled={!isSale}
           value={unitPrice}
           onChange={(e) => setUnitPrice(e.target.value)}
-          className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
+          className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm disabled:bg-brand-cream disabled:text-brand-brown-light"
+          title={isSale ? "Sale price" : 'Check "Sale" to lower this item\'s price'}
         />
       </div>
 
@@ -157,7 +203,7 @@ export function SaleForm({
         />
       </div>
 
-      <div className="flex items-end gap-2 lg:col-span-5">
+      <div className="flex items-end gap-2 lg:col-span-6">
         {id ? (
           <ConfirmSubmitButton
             pendingText="Updating…"

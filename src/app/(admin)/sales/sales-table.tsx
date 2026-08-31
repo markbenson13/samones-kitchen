@@ -16,11 +16,12 @@ type SaleRow = {
   id: string;
   foodItemId: string;
   quantityMade: number;
+  quantity: number;
   leftover: number;
   unitPrice: string;
   totalAmount: string;
+  isSale: boolean;
   foodItemName: string;
-  foodItemSellingPrice: string;
   date: string;
 };
 
@@ -34,6 +35,7 @@ type Group = {
 type SortKey =
   | "foodItem"
   | "quantityMade"
+  | "quantity"
   | "leftover"
   | "unitPrice"
   | "total";
@@ -54,6 +56,8 @@ function sortItems(items: SaleRow[], sort: SortState<SortKey>) {
         );
       case "quantityMade":
         return sign * compareValues(a.quantityMade, b.quantityMade);
+      case "quantity":
+        return sign * compareValues(a.quantity, b.quantity);
       case "leftover":
         return sign * compareValues(a.leftover, b.leftover);
       case "unitPrice":
@@ -135,8 +139,14 @@ export function SalesTable({
             onSort={(key) => setSort(nextSortState(sort, key))}
           />
           <SortableHeader
-            label="Made"
+            label="Tubs made"
             sortKey="quantityMade"
+            currentSort={sort}
+            onSort={(key) => setSort(nextSortState(sort, key))}
+          />
+          <SortableHeader
+            label="Sold"
+            sortKey="quantity"
             currentSort={sort}
             onSort={(key) => setSort(nextSortState(sort, key))}
           />
@@ -165,12 +175,11 @@ export function SalesTable({
         <CollapsibleGroup
           key={group.key}
           label={group.label}
-          labelColSpan={5}
+          labelColSpan={6}
           subtotal={formatMoney(group.subtotal)}
           trailingColSpan={1}
         >
           {group.items.map((sale) => {
-            const isSale = toNumber(sale.unitPrice) < toNumber(sale.foodItemSellingPrice);
             return (
               <tr key={sale.id}>
                 <td className="px-4 py-3">
@@ -183,7 +192,7 @@ export function SalesTable({
                 </td>
                 <td className="px-4 py-3 font-medium text-brand-brown">
                   {sale.foodItemName}
-                  {isSale && (
+                  {sale.isSale && (
                     <span className="ml-2 rounded-full bg-brand-gold/20 px-2 py-0.5 text-xs font-medium text-brand-red">
                       Sale
                     </span>
@@ -192,6 +201,7 @@ export function SalesTable({
                 <td className="px-4 py-3 text-brand-brown-light">
                   {sale.quantityMade}
                 </td>
+                <td className="px-4 py-3">{sale.quantity}</td>
                 <td
                   className={`px-4 py-3 ${
                     sale.leftover < 0 ? "text-red-600" : "text-brand-brown-light"
@@ -231,7 +241,7 @@ export function SalesTable({
       ))}
       <tfoot className="border-t-2 border-brand-tan bg-brand-cream">
         <tr>
-          <td className="px-4 py-3 font-medium text-brand-brown" colSpan={5}>
+          <td className="px-4 py-3 font-medium text-brand-brown" colSpan={6}>
             {totalLabel}
           </td>
           <td className="px-4 py-3 font-semibold text-brand-brown">

@@ -15,23 +15,31 @@ export async function upsertSale(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim() || null;
   const foodItemId = String(formData.get("foodItemId") ?? "");
   const quantityMade = Number(formData.get("quantityMade"));
+  const quantity = Number(formData.get("quantity"));
+  const isSale = formData.get("isSale") === "on";
+  // The price input is only enabled (and submitted) when "Sale" is checked.
   const unitPriceInput = String(formData.get("unitPrice") ?? "").trim();
   const dateStr = String(formData.get("date") ?? "");
 
   if (!foodItemId) throw new Error("Food item is required");
   if (!Number.isInteger(quantityMade) || quantityMade <= 0)
     throw new Error("Invalid tubs made");
+  if (!Number.isInteger(quantity) || quantity < 0)
+    throw new Error("Invalid sold quantity");
+  if (quantity > quantityMade)
+    throw new Error("Sold quantity cannot exceed tubs made");
 
   const foodItem = await prisma.foodItem.findUnique({
     where: { id: foodItemId },
   });
   if (!foodItem) throw new Error("Food item not found");
 
-  // Defaults to the food item's current selling price, but the form allows
-  // overriding it (e.g. a discounted clearance sale) instead of requiring a
-  // separate duplicate food item per price variant.
+  // Defaults to the food item's current selling price. The form only lets
+  // this be lowered when "Sale" is checked, e.g. clearing out leftover
+  // stock at a discount instead of requiring a separate duplicate food item
+  // per price variant.
   let unitPrice: number | typeof foodItem.sellingPrice = foodItem.sellingPrice;
-  if (unitPriceInput) {
+  if (isSale && unitPriceInput) {
     const override = Number(unitPriceInput);
     if (!Number.isFinite(override) || override < 0)
       throw new Error("Invalid unit price");
@@ -39,29 +47,16 @@ export async function upsertSale(formData: FormData) {
   }
 
   const date = dateStr ? new Date(dateStr) : new Date();
-
-  // Total (revenue) is based on however much was already ordered for this
-  // food item on this date via the Orders form — recomputed on every save so
-  // editing the food item or date re-derives it. Not stored as its own
-  // "quantity sold" field; the Sales page separately derives Leftover/Total
-  // live from Orders, so this stored snapshot only keeps the Dashboard's
-  // revenue totals accurate as of the last save.
-  const orderedAgg = await prisma.order.aggregate({
-    where: { foodItemId, date },
-    _sum: { quantity: true },
-  });
-  const orderedQuantity = orderedAgg._sum.quantity ?? 0;
-
-  const totalAmount = Number(unitPrice) * orderedQuantity;
+  const totalAmount = Number(unitPrice) * quantity;
 
   if (id) {
     await prisma.sale.update({
       where: { id },
-      data: { foodItemId, quantityMade, unitPrice, totalAmount, date },
+      data: { foodItemId, quantityMade, quantity, unitPrice, totalAmount, isSale, date },
     });
   } else {
     await prisma.sale.create({
-      data: { foodItemId, quantityMade, unitPrice, totalAmount, date },
+      data: { foodItemId, quantityMade, quantity, unitPrice, totalAmount, isSale, date },
     });
   }
 

@@ -10,11 +10,12 @@ type SaleRow = {
   id: string;
   foodItemId: string;
   quantityMade: number;
+  quantity: number;
   leftover: number;
   unitPrice: string;
   totalAmount: string;
+  isSale: boolean;
   foodItemName: string;
-  foodItemSellingPrice: string;
   date: string;
 };
 
@@ -58,9 +59,10 @@ export function SalesSection({
         ) : (
           <>
             <p className="mt-1 text-xs text-brand-brown-light">
-              Unit price defaults to the item&apos;s current selling price —
-              lower it to record a clearance/discounted sale instead of
-              creating a duplicate food item.
+              Check &quot;Sale&quot; and lower the unit price to record
+              leftover stock sold off at a discount — it&apos;s fine to add
+              a second, sale-priced entry for an item already recorded
+              today.
             </p>
             <SaleForm
               action={action}
@@ -91,7 +93,9 @@ export function SalesSection({
                 id: sale.id,
                 foodItemId: sale.foodItemId,
                 quantityMade: sale.quantityMade,
+                quantity: sale.quantity,
                 unitPrice: sale.unitPrice,
+                isSale: sale.isSale,
                 date: sale.date,
               })
             }
