@@ -26,6 +26,7 @@ export function SalesSection({
   menuByDate,
   allFoodItems,
   defaultDate,
+  leftoverByKey,
   groups,
   deleteAction,
   bulkDeleteAction,
@@ -37,6 +38,7 @@ export function SalesSection({
   menuByDate: Record<string, FoodItemOption[]>;
   allFoodItems: FoodItemOption[];
   defaultDate: string;
+  leftoverByKey: Record<string, number>;
   groups: Group[];
   deleteAction: (id: string) => void | Promise<void>;
   bulkDeleteAction: (ids: string[]) => void | Promise<void>;
@@ -69,6 +71,7 @@ export function SalesSection({
               menuByDate={menuByDate}
               allFoodItems={allFoodItems}
               defaultDate={defaultDate}
+              leftoverByKey={leftoverByKey}
               editingSale={editingSale}
               onCancelEdit={() => setEditingSale(null)}
             />

@@ -16,27 +16,47 @@ function groupWhere(groupKey: string) {
   return { OR: [{ orderGroupId: groupKey }, { id: groupKey }] };
 }
 
+// The regular-price Sale row's leftover (made - sold) for this food item/day,
+// if one's been logged — this is what "made" on the Sale-tagged row should
+// reflect (the leftover stock that got moved over), not the quantity of any
+// one order against it.
+async function regularLeftover(foodItemId: string, date: Date) {
+  const regular = await prisma.sale.findFirst({
+    where: { foodItemId, date, isSale: false },
+  });
+  return regular ? regular.quantityMade - regular.quantity : null;
+}
+
 // A "Sale" order represents leftover stock being cleared at a discount —
 // fold it into (or start) that day's Sale-tagged Sale row for the same food
 // item, so the Sales page reflects it without a separate manual entry. The
 // regular-price Sale row for that day is left untouched; its own leftover is
 // just conceptually explained by this transfer, not reduced in the data.
+//
+// "made" on the Sale-tagged row is the regular row's leftover (how many tubs
+// got moved over), not the sum of order quantities — "sold" is what
+// accumulates as more Sale orders come in, and can be less than "made" if
+// not all the moved-over stock has sold yet.
 async function addSaleCarryover(
   foodItemId: string,
   date: Date,
   quantity: number,
   unitPrice: number
 ) {
+  const leftover = await regularLeftover(foodItemId, date);
   const existing = await prisma.sale.findFirst({
     where: { foodItemId, date, isSale: true },
   });
+
   if (existing) {
     const newQuantity = existing.quantity + quantity;
     const newTotal = Number(existing.totalAmount) + unitPrice * quantity;
     await prisma.sale.update({
       where: { id: existing.id },
       data: {
-        quantityMade: existing.quantityMade + quantity,
+        // Made can't be less than what's actually sold, whatever the
+        // regular row's leftover says (e.g. if it was edited down after).
+        quantityMade: Math.max(leftover ?? existing.quantityMade, newQuantity),
         quantity: newQuantity,
         unitPrice: newTotal / newQuantity,
         totalAmount: newTotal,
@@ -47,7 +67,7 @@ async function addSaleCarryover(
       data: {
         foodItemId,
         date,
-        quantityMade: quantity,
+        quantityMade: Math.max(leftover ?? quantity, quantity),
         quantity,
         unitPrice,
         totalAmount: unitPrice * quantity,
@@ -73,22 +93,23 @@ async function removeSaleCarryover(
   if (!existing) return;
 
   const newQuantity = existing.quantity - quantity;
-  const newQuantityMade = existing.quantityMade - quantity;
   const newTotal = Number(existing.totalAmount) - unitPrice * quantity;
 
-  if (newQuantity <= 0 || newQuantityMade <= 0) {
+  if (newQuantity <= 0) {
     await prisma.sale.delete({ where: { id: existing.id } });
-  } else {
-    await prisma.sale.update({
-      where: { id: existing.id },
-      data: {
-        quantityMade: newQuantityMade,
-        quantity: newQuantity,
-        unitPrice: newTotal / newQuantity,
-        totalAmount: newTotal,
-      },
-    });
+    return;
   }
+
+  const leftover = await regularLeftover(foodItemId, date);
+  await prisma.sale.update({
+    where: { id: existing.id },
+    data: {
+      quantityMade: Math.max(leftover ?? existing.quantityMade, newQuantity),
+      quantity: newQuantity,
+      unitPrice: newTotal / newQuantity,
+      totalAmount: newTotal,
+    },
+  });
 }
 
 export async function createOrder(formData: FormData) {

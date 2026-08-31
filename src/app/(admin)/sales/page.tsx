@@ -44,6 +44,16 @@ export default async function SalesPage({
     0
   );
 
+  // Lets the Sales form prefill "Tubs made" with the regular-price row's
+  // leftover the moment "Sale" is checked for that food item/date, instead
+  // of the leftover having to be looked up and typed in by hand.
+  const leftoverByKey: Record<string, number> = {};
+  for (const sale of sales) {
+    if (sale.isSale) continue;
+    const key = `${utcDateKey(sale.date)}_${sale.foodItemId}`;
+    leftoverByKey[key] = sale.quantityMade - sale.quantity;
+  }
+
   const groups: {
     key: string;
     label: string;
@@ -79,6 +89,7 @@ export default async function SalesPage({
       <SalesSection
         action={upsertSale}
         menuByDate={menuByDate}
+        leftoverByKey={leftoverByKey}
         allFoodItems={foodItems.map((item) => ({
           id: item.id,
           name: item.name,

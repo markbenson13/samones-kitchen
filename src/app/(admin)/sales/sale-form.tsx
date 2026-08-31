@@ -22,6 +22,7 @@ export function SaleForm({
   menuByDate,
   allFoodItems,
   defaultDate,
+  leftoverByKey,
   editingSale,
   onCancelEdit,
 }: {
@@ -29,6 +30,7 @@ export function SaleForm({
   menuByDate: Record<string, FoodItemOption[]>;
   allFoodItems: FoodItemOption[];
   defaultDate: string;
+  leftoverByKey: Record<string, number>;
   editingSale?: EditingSale | null;
   onCancelEdit?: () => void;
 }) {
@@ -72,15 +74,27 @@ export function SaleForm({
     setDate(editingSale.date);
   }
 
-  function handleFoodItemChange(id: string) {
-    setFoodItemId(id);
-    const item = options.find((f) => f.id === id);
+  // Only prefills for a brand-new entry — editing an existing row leaves
+  // Tubs made alone so it doesn't get clobbered mid-edit.
+  function applyLeftoverPrefill(nextFoodItemId: string, nextDate: string) {
+    if (id) return;
+    const key = `${utcDateKey(new Date(nextDate))}_${nextFoodItemId}`;
+    const leftover = leftoverByKey[key];
+    if (leftover !== undefined) setQuantityMade(String(leftover));
+  }
+
+  function handleFoodItemChange(newFoodItemId: string) {
+    setFoodItemId(newFoodItemId);
+    const item = options.find((f) => f.id === newFoodItemId);
     if (item && !isSale) setUnitPrice(item.sellingPrice);
+    if (isSale) applyLeftoverPrefill(newFoodItemId, date);
   }
 
   function handleSaleToggle(checked: boolean) {
     setIsSale(checked);
-    if (!checked) {
+    if (checked) {
+      applyLeftoverPrefill(foodItemId, date);
+    } else {
       const item = options.find((f) => f.id === foodItemId);
       setUnitPrice(item?.sellingPrice ?? "");
     }
@@ -93,6 +107,9 @@ export function SaleForm({
     if (!nextOptions.some((item) => item.id === foodItemId)) {
       setFoodItemId(nextOptions[0]?.id ?? "");
       setUnitPrice(nextOptions[0]?.sellingPrice ?? "");
+      if (isSale) applyLeftoverPrefill(nextOptions[0]?.id ?? "", value);
+    } else if (isSale) {
+      applyLeftoverPrefill(foodItemId, value);
     }
   }
 
