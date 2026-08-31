@@ -16,6 +16,81 @@ function groupWhere(groupKey: string) {
   return { OR: [{ orderGroupId: groupKey }, { id: groupKey }] };
 }
 
+// A "Sale" order represents leftover stock being cleared at a discount —
+// fold it into (or start) that day's Sale-tagged Sale row for the same food
+// item, so the Sales page reflects it without a separate manual entry. The
+// regular-price Sale row for that day is left untouched; its own leftover is
+// just conceptually explained by this transfer, not reduced in the data.
+async function addSaleCarryover(
+  foodItemId: string,
+  date: Date,
+  quantity: number,
+  unitPrice: number
+) {
+  const existing = await prisma.sale.findFirst({
+    where: { foodItemId, date, isSale: true },
+  });
+  if (existing) {
+    const newQuantity = existing.quantity + quantity;
+    const newTotal = Number(existing.totalAmount) + unitPrice * quantity;
+    await prisma.sale.update({
+      where: { id: existing.id },
+      data: {
+        quantityMade: existing.quantityMade + quantity,
+        quantity: newQuantity,
+        unitPrice: newTotal / newQuantity,
+        totalAmount: newTotal,
+      },
+    });
+  } else {
+    await prisma.sale.create({
+      data: {
+        foodItemId,
+        date,
+        quantityMade: quantity,
+        quantity,
+        unitPrice,
+        totalAmount: unitPrice * quantity,
+        isSale: true,
+      },
+    });
+  }
+}
+
+// The reverse of addSaleCarryover, for when a Sale order is deleted — undoes
+// its contribution to that day's Sale-tagged row. If nothing's left on the
+// row afterward (or it was already removed/edited away), the row is deleted
+// rather than left at zero/negative.
+async function removeSaleCarryover(
+  foodItemId: string,
+  date: Date,
+  quantity: number,
+  unitPrice: number
+) {
+  const existing = await prisma.sale.findFirst({
+    where: { foodItemId, date, isSale: true },
+  });
+  if (!existing) return;
+
+  const newQuantity = existing.quantity - quantity;
+  const newQuantityMade = existing.quantityMade - quantity;
+  const newTotal = Number(existing.totalAmount) - unitPrice * quantity;
+
+  if (newQuantity <= 0 || newQuantityMade <= 0) {
+    await prisma.sale.delete({ where: { id: existing.id } });
+  } else {
+    await prisma.sale.update({
+      where: { id: existing.id },
+      data: {
+        quantityMade: newQuantityMade,
+        quantity: newQuantity,
+        unitPrice: newTotal / newQuantity,
+        totalAmount: newTotal,
+      },
+    });
+  }
+}
+
 export async function createOrder(formData: FormData) {
   await requireAdmin();
 
@@ -85,8 +160,15 @@ export async function createOrder(formData: FormData) {
     })),
   });
 
+  for (const { foodItemId, quantity, unitPriceOverride, isSale } of items) {
+    if (!isSale) continue;
+    const unitPrice = unitPriceOverride ?? Number(priceById.get(foodItemId)!);
+    await addSaleCarryover(foodItemId, date, quantity, unitPrice);
+  }
+
   revalidatePath("/orders");
   revalidatePath("/sales");
+  revalidatePath("/dashboard");
 }
 
 export async function toggleOrderPaymentStatus(
@@ -127,15 +209,38 @@ export async function updateOrderPaymentMode(formData: FormData) {
 
 export async function deleteOrder(id: string) {
   await requireAdmin();
-  await prisma.order.delete({ where: { id } });
+  const order = await prisma.order.delete({ where: { id } });
+  if (order.isSale) {
+    await removeSaleCarryover(
+      order.foodItemId,
+      order.date,
+      order.quantity,
+      Number(order.unitPrice)
+    );
+  }
   revalidatePath("/orders");
   revalidatePath("/sales");
+  revalidatePath("/dashboard");
 }
 
 export async function deleteOrders(ids: string[]) {
   await requireAdmin();
   if (ids.length === 0) return;
+  // Fetched before deleting so any Sale-tagged rows' contribution can be
+  // reversed out of the Sale row it was folded into.
+  const orders = await prisma.order.findMany({ where: { id: { in: ids } } });
   await prisma.order.deleteMany({ where: { id: { in: ids } } });
+  for (const order of orders) {
+    if (order.isSale) {
+      await removeSaleCarryover(
+        order.foodItemId,
+        order.date,
+        order.quantity,
+        Number(order.unitPrice)
+      );
+    }
+  }
   revalidatePath("/orders");
   revalidatePath("/sales");
+  revalidatePath("/dashboard");
 }
