@@ -8,6 +8,7 @@ import {
   formatRangeDate,
 } from "@/lib/date";
 import { createMarketCost, deleteMarketCost } from "@/app/actions/market-costs";
+import { CollapsibleGroup } from "@/components/collapsible-group";
 
 const DEFAULT_RANGE_DAYS = 30;
 
@@ -191,22 +192,13 @@ export default async function MarketCostsPage({
               </tr>
             </thead>
             {groups.map((group) => (
-              <tbody
+              <CollapsibleGroup
                 key={group.key}
-                className="divide-y divide-brand-tan/60 border-t-2 border-brand-tan"
+                label={group.label}
+                labelColSpan={2}
+                subtotal={formatMoney(group.subtotal)}
+                trailingColSpan={1}
               >
-                <tr className="bg-brand-cream-dark/50">
-                  <td
-                    colSpan={2}
-                    className="px-4 py-2 text-sm font-semibold text-brand-brown"
-                  >
-                    {group.label}
-                  </td>
-                  <td className="px-4 py-2 text-sm font-semibold text-brand-brown">
-                    {formatMoney(group.subtotal)}
-                  </td>
-                  <td />
-                </tr>
                 {group.items.map((cost) => (
                   <tr key={cost.id}>
                     <td className="px-4 py-3 font-medium text-brand-brown">
@@ -230,7 +222,7 @@ export default async function MarketCostsPage({
                     </td>
                   </tr>
                 ))}
-              </tbody>
+              </CollapsibleGroup>
             ))}
             <tfoot className="border-t-2 border-brand-tan bg-brand-cream">
               <tr>
