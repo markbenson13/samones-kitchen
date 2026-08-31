@@ -16,6 +16,7 @@ type ChartPoint = {
   date: string;
   sales: number;
   costs: number;
+  expenses: number;
   net: number;
 };
 
@@ -40,6 +41,12 @@ export function IncomeChart({ data }: { data: ChartPoint[] }) {
           dataKey="costs"
           name="Market costs"
           fill="#c1392b"
+          radius={[4, 4, 0, 0]}
+        />
+        <Bar
+          dataKey="expenses"
+          name="Expenses"
+          fill="#8a6d3b"
           radius={[4, 4, 0, 0]}
         />
         <Line

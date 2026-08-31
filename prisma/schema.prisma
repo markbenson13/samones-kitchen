@@ -45,6 +45,16 @@ model MarketCost {
   createdAt   DateTime @default(now())
 }
 
+// Operating expenses (gas, packaging, transportation, etc.) — distinct from
+// MarketCost, which is specifically ingredient/supply cost of goods sold.
+model Expense {
+  id          String   @id @default(cuid())
+  date        DateTime @default(now())
+  description String
+  amount      Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+}
+
 model Sale {
   id          String   @id @default(cuid())
   date        DateTime @default(now())

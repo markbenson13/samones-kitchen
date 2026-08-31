@@ -4,6 +4,7 @@ import { formatMoney, toNumber } from "@/lib/money";
 import { utcDateKey, formatRangeDate } from "@/lib/date";
 import { IncomeChart } from "./income-chart";
 import { SubmitButton } from "@/components/submit-button";
+import { StatCard } from "@/components/stat-card";
 
 const DEFAULT_RANGE_DAYS = 30;
 const MAX_CHART_DAYS = 366;
@@ -36,14 +37,25 @@ export default async function DashboardPage({
     )
   );
 
-  const [sales, costs] = await Promise.all([
+  const dateRangeWhere = { date: { gte: fromDate, lt: toDateExclusive } };
+
+  const [sales, costs, expenses, topItemGroups] = await Promise.all([
     prisma.sale.findMany({
-      where: { date: { gte: fromDate, lt: toDateExclusive } },
+      where: dateRangeWhere,
       select: { date: true, totalAmount: true },
     }),
     prisma.marketCost.findMany({
-      where: { date: { gte: fromDate, lt: toDateExclusive } },
+      where: dateRangeWhere,
       select: { date: true, amount: true },
+    }),
+    prisma.expense.findMany({
+      where: dateRangeWhere,
+      select: { date: true, amount: true },
+    }),
+    prisma.sale.groupBy({
+      by: ["foodItemId"],
+      where: dateRangeWhere,
+      _sum: { totalAmount: true, quantity: true },
     }),
   ]);
 
@@ -55,7 +67,32 @@ export default async function DashboardPage({
     (sum, cost) => sum + toNumber(cost.amount.toString()),
     0
   );
-  const netIncome = totalSales - totalCosts;
+  const totalExpenses = expenses.reduce(
+    (sum, expense) => sum + toNumber(expense.amount.toString()),
+    0
+  );
+  const netIncome = totalSales - totalCosts - totalExpenses;
+
+  const topItemAgg = topItemGroups.reduce<(typeof topItemGroups)[number] | null>(
+    (best, group) => {
+      const revenue = toNumber(group._sum.totalAmount?.toString() ?? "0");
+      const bestRevenue = best
+        ? toNumber(best._sum.totalAmount?.toString() ?? "0")
+        : -Infinity;
+      return revenue > bestRevenue ? group : best;
+    },
+    null
+  );
+  const topFoodItem = topItemAgg
+    ? await prisma.foodItem.findUnique({
+        where: { id: topItemAgg.foodItemId },
+        select: { name: true },
+      })
+    : null;
+  const topFoodItemRevenue = topItemAgg
+    ? toNumber(topItemAgg._sum.totalAmount?.toString() ?? "0")
+    : 0;
+  const topFoodItemQuantity = topItemAgg?._sum.quantity ?? 0;
 
   const salesByDay = new Map<string, number>();
   for (const sale of sales) {
@@ -75,17 +112,28 @@ export default async function DashboardPage({
     );
   }
 
+  const expensesByDay = new Map<string, number>();
+  for (const expense of expenses) {
+    const key = utcDateKey(expense.date);
+    expensesByDay.set(
+      key,
+      (expensesByDay.get(key) ?? 0) + toNumber(expense.amount.toString())
+    );
+  }
+
   const chartData = Array.from({ length: dayCount }, (_, i) => {
     const d = new Date(fromDate);
     d.setUTCDate(d.getUTCDate() + i);
     const key = utcDateKey(d);
     const daySales = salesByDay.get(key) ?? 0;
     const dayCosts = costsByDay.get(key) ?? 0;
+    const dayExpenses = expensesByDay.get(key) ?? 0;
     return {
       date: key.slice(5),
       sales: daySales,
       costs: dayCosts,
-      net: daySales - dayCosts,
+      expenses: dayExpenses,
+      net: daySales - dayCosts - dayExpenses,
     };
   });
 
@@ -135,13 +183,24 @@ export default async function DashboardPage({
         </Link>
       </form>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard label="Total sales" value={formatMoney(totalSales)} />
         <StatCard label="Total market costs" value={formatMoney(totalCosts)} />
+        <StatCard label="Total expenses" value={formatMoney(totalExpenses)} />
         <StatCard
           label="Net income"
           value={formatMoney(netIncome)}
+          subtitle="Sales − market costs − expenses"
           tone={netIncome >= 0 ? "positive" : "negative"}
+        />
+        <StatCard
+          label="Top food item"
+          value={topFoodItem?.name ?? "No sales yet"}
+          subtitle={
+            topFoodItem
+              ? `${formatMoney(topFoodItemRevenue)} · ${topFoodItemQuantity} sold`
+              : undefined
+          }
         />
       </div>
 
@@ -153,32 +212,6 @@ export default async function DashboardPage({
           <IncomeChart data={chartData} />
         </div>
       </section>
-    </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  tone?: "neutral" | "positive" | "negative";
-}) {
-  const toneClass =
-    tone === "positive"
-      ? "text-emerald-600"
-      : tone === "negative"
-        ? "text-red-600"
-        : "text-brand-brown";
-
-  return (
-    <div className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
-      <p className="text-xs font-medium uppercase text-brand-brown-light">
-        {label}
-      </p>
-      <p className={`mt-2 text-2xl font-semibold ${toneClass}`}>{value}</p>
     </div>
   );
 }
