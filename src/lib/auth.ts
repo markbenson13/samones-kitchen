@@ -1,9 +1,14 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
+    Google({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    }),
     Credentials({
       credentials: {
         email: { label: "Email", type: "email" },
@@ -37,6 +42,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   session: {
     strategy: "jwt",
+  },
+  callbacks: {
+    // Google sign-in is restricted to the single configured admin — anyone
+    // else's Google account is rejected, same as a wrong Credentials password.
+    async signIn({ user, account }) {
+      if (account?.provider !== "google") return true;
+
+      const adminEmail = process.env.ADMIN_EMAIL;
+      return (
+        !!adminEmail &&
+        !!user.email &&
+        user.email.toLowerCase() === adminEmail.toLowerCase()
+      );
+    },
   },
   trustHost: true,
 });
