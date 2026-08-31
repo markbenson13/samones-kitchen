@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CollapsibleSection } from "@/components/collapsible-section";
 import { DailyMenuManager } from "./daily-menu-manager";
 import { OrderForm } from "./order-form";
 
@@ -53,10 +54,9 @@ export function OrdersDayPanel({
         date={date}
       />
 
-      <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-medium text-brand-brown">Add order</h2>
+      <CollapsibleSection title="Add order">
         {allFoodItems.length === 0 ? (
-          <p className="mt-4 text-sm text-brand-brown-light">
+          <p className="text-sm text-brand-brown-light">
             Add a dish to a day&apos;s menu above before recording an order.
           </p>
         ) : (
@@ -67,7 +67,7 @@ export function OrdersDayPanel({
             date={date}
           />
         )}
-      </section>
+      </CollapsibleSection>
     </div>
   );
 }

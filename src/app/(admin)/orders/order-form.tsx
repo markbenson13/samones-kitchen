@@ -29,7 +29,7 @@ export function OrderForm({
   return (
     <form action={action} className="mt-4 space-y-4">
       <input type="hidden" name="date" value={date} />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="lg:col-span-2">
           <label className="block text-xs font-medium text-brand-brown-light">
             Customer name / unit
