@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Combobox } from "./combobox";
+import { Combobox } from "@/components/combobox";
 
 type FoodItemOption = {
   id: string;
