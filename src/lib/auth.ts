@@ -44,25 +44,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     strategy: "jwt",
   },
   callbacks: {
-    // Google sign-in: an email that already has a User row can always sign
-    // in. A new email is only auto-provisioned (a User row created on the
-    // spot) if it's in ALLOWED_EMAILS — anyone else's Google account is
-    // rejected, same as a wrong Credentials password.
+    // Anyone can attempt Google sign-in. A new email is auto-provisioned as
+    // an unapproved User row on the spot instead of being rejected outright,
+    // but can't establish a session until an existing user approves it from
+    // the Users page — same gate applies if an approved user is later
+    // revoked.
     async signIn({ user, account }) {
       if (account?.provider !== "google") return true;
       if (!user.email) return false;
 
       const email = user.email.toLowerCase();
       const existing = await prisma.user.findUnique({ where: { email } });
-      if (existing) return true;
 
-      const allowedEmails = (process.env.ALLOWED_EMAILS ?? "")
-        .split(",")
-        .map((e) => e.trim().toLowerCase())
-        .filter(Boolean);
-      if (!allowedEmails.includes(email)) return false;
+      if (!existing) {
+        await prisma.user.create({
+          data: { email, name: user.name ?? null, isApproved: false },
+        });
+        return "/login?error=pending";
+      }
 
-      await prisma.user.create({ data: { email, name: user.name ?? null } });
+      if (!existing.isApproved) return "/login?error=pending";
+
       return true;
     },
   },

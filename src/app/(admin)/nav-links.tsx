@@ -8,6 +8,7 @@ import {
   UtensilsCrossed,
   ShoppingBasket,
   Receipt,
+  Users,
 } from "lucide-react";
 
 const NAV_LINKS = [
@@ -16,6 +17,7 @@ const NAV_LINKS = [
   { href: "/food-items", label: "Food Items", icon: UtensilsCrossed },
   { href: "/market-costs", label: "Market Costs", icon: ShoppingBasket },
   { href: "/sales", label: "Sales", icon: Receipt },
+  { href: "/users", label: "Users", icon: Users },
 ];
 
 export function NavLinks({ collapsed = false }: { collapsed?: boolean }) {

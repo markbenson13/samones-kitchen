@@ -62,7 +62,13 @@ export default async function LoginPage({
             />
           </div>
 
-          {error && (
+          {error === "pending" && (
+            <p className="text-sm text-red-600">
+              Your Google account is signed in but not yet approved. Ask an
+              existing admin to approve it from the Users page.
+            </p>
+          )}
+          {error && error !== "pending" && (
             <p className="text-sm text-red-600">
               Invalid email or password. Please try again.
             </p>

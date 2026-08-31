@@ -11,6 +11,12 @@ model User {
   email        String   @unique
   name         String?
   passwordHash String?
+  // Anyone can attempt Google sign-in, but a newly auto-created Google
+  // account starts unapproved and can't establish a session until an
+  // existing user approves it from the Users page. Rows created directly
+  // (the Credentials/admin flow, or the create-user script) default to
+  // approved since creating one is already an admin-only action.
+  isApproved   Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
