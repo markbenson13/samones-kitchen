@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { NavLinks } from "./nav-links";
+import { PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
+import { NavLinks, NavLink } from "./nav-links";
 import { UserMenu } from "./user-menu";
 
 export function Sidebar({
@@ -24,22 +24,36 @@ export function Sidebar({
       }`}
     >
       <div
-        className={`flex items-center gap-3 border-b border-brand-tan px-4 py-4 ${
-          collapsed ? "justify-center px-2" : ""
+        className={`flex border-b border-brand-tan px-2 py-4 ${
+          collapsed ? "flex-col items-center gap-2" : "items-center justify-between gap-3 px-4"
         }`}
       >
-        <Image
-          src="/logo.png"
-          alt="SAMone's Kitchen"
-          width={36}
-          height={36}
-          className="h-9 w-9 shrink-0 object-contain"
-        />
-        {!collapsed && (
-          <p className="text-base font-semibold whitespace-nowrap text-brand-brown">
-            SAMone&apos;s Kitchen
-          </p>
-        )}
+        <div className="flex items-center gap-3">
+          <Image
+            src="/logo.png"
+            alt="SAMone's Kitchen"
+            width={36}
+            height={36}
+            className="h-9 w-9 shrink-0 object-contain"
+          />
+          {!collapsed && (
+            <p className="text-base font-semibold whitespace-nowrap text-brand-brown">
+              SAMone&apos;s Kitchen
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-brand-brown-light hover:bg-brand-cream hover:text-brand-red"
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="h-4 w-4" />
+          ) : (
+            <PanelLeftClose className="h-4 w-4" />
+          )}
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-4">
@@ -47,29 +61,15 @@ export function Sidebar({
       </div>
 
       <div className="border-t border-brand-tan p-2">
-        <button
-          type="button"
-          onClick={() => setCollapsed((c) => !c)}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className={`mb-1 flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-brand-brown-light hover:bg-brand-cream hover:text-brand-red ${
-            collapsed ? "justify-center" : ""
-          }`}
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="h-4 w-4 shrink-0" />
-          ) : (
-            <>
-              <PanelLeftClose className="h-4 w-4 shrink-0" />
-              Collapse
-            </>
-          )}
-        </button>
-        <UserMenu
-          name={userName}
-          email={userEmail}
-          signOutAction={signOutAction}
-          collapsed={collapsed}
-        />
+        <NavLink href="/users" label="Users" icon={Users} collapsed={collapsed} />
+        <div className="mt-1">
+          <UserMenu
+            name={userName}
+            email={userEmail}
+            signOutAction={signOutAction}
+            collapsed={collapsed}
+          />
+        </div>
       </div>
     </aside>
   );
