@@ -1,4 +1,4 @@
-## Samone Kitchen — Admin
+## SAMone's Kitchen — Admin
 
 An admin-only web app for tracking an ulam (viand) selling business:
 

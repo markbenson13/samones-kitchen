@@ -17,13 +17,13 @@ export default async function AdminLayout({
         <div className="flex items-center gap-3 border-b border-brand-tan px-4 py-4">
           <Image
             src="/logo.png"
-            alt="Samone's Kitchen"
+            alt="SAMone's Kitchen"
             width={36}
             height={36}
             className="h-9 w-9 object-contain"
           />
           <p className="text-base font-semibold text-brand-brown">
-            Samone&apos;s Kitchen
+            SAMone&apos;s Kitchen
           </p>
         </div>
 

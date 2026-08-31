@@ -14,14 +14,14 @@ export default async function LoginPage({
         <div className="flex flex-col items-center text-center">
           <Image
             src="/logo.png"
-            alt="Samone's Kitchen"
+            alt="SAMone's Kitchen"
             width={80}
             height={80}
             className="h-20 w-20 object-contain"
             priority
           />
           <h1 className="mt-2 text-xl font-semibold text-brand-brown">
-            Samone&apos;s Kitchen
+            SAMone&apos;s Kitchen
           </h1>
           <p className="mt-1 text-sm text-brand-brown-light">Admin sign in</p>
         </div>
