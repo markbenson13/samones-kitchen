@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -24,16 +25,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!email || !password) return null;
 
-        const adminEmail = process.env.ADMIN_EMAIL;
-        const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH;
-        if (!adminEmail || !adminPasswordHash) return null;
+        const user = await prisma.user.findUnique({
+          where: { email: email.toLowerCase() },
+        });
+        if (!user?.passwordHash) return null;
 
-        if (email.toLowerCase() !== adminEmail.toLowerCase()) return null;
-
-        const valid = await bcrypt.compare(password, adminPasswordHash);
+        const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
 
-        return { id: "admin", email: adminEmail, name: "Admin" };
+        return { id: user.id, email: user.email, name: user.name };
       },
     }),
   ],
@@ -44,17 +44,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     strategy: "jwt",
   },
   callbacks: {
-    // Google sign-in is restricted to the single configured admin — anyone
-    // else's Google account is rejected, same as a wrong Credentials password.
+    // Google sign-in: an email that already has a User row can always sign
+    // in. A new email is only auto-provisioned (a User row created on the
+    // spot) if it's in ALLOWED_EMAILS — anyone else's Google account is
+    // rejected, same as a wrong Credentials password.
     async signIn({ user, account }) {
       if (account?.provider !== "google") return true;
+      if (!user.email) return false;
 
-      const adminEmail = process.env.ADMIN_EMAIL;
-      return (
-        !!adminEmail &&
-        !!user.email &&
-        user.email.toLowerCase() === adminEmail.toLowerCase()
-      );
+      const email = user.email.toLowerCase();
+      const existing = await prisma.user.findUnique({ where: { email } });
+      if (existing) return true;
+
+      const allowedEmails = (process.env.ALLOWED_EMAILS ?? "")
+        .split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean);
+      if (!allowedEmails.includes(email)) return false;
+
+      await prisma.user.create({ data: { email, name: user.name ?? null } });
+      return true;
     },
   },
   trustHost: true,

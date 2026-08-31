@@ -9,6 +9,7 @@
     "lint": "eslint",
     "db:push": "prisma db push",
     "hash-password": "node scripts/generate-password-hash.mjs",
+    "create-user": "node scripts/create-user.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {
