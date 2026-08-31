@@ -27,9 +27,11 @@ export default async function OrdersPage({
   const [orders, ordersCount, customerNameRows, foodItems, dailyMenuEntries] =
     await Promise.all([
       prisma.order.findMany({
-        // Secondary sort by orderGroupId so every row sharing one guarantees
-        // to land contiguously — required for batchesFor() below.
-        orderBy: [{ date: "desc" }, { orderGroupId: "desc" }],
+        // Most recently placed first within a day; orderGroupId is just a
+        // tiebreaker so every row sharing one still lands contiguously
+        // (required for the batching below) — it's a random UUID, not
+        // chronological, so it can't be the primary sort on its own.
+        orderBy: [{ date: "desc" }, { createdAt: "desc" }, { orderGroupId: "desc" }],
         include: { foodItem: true },
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
