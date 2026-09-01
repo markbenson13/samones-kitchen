@@ -9,6 +9,8 @@ import {
   deleteOrderBatch,
   toggleOrderPaymentStatus,
   toggleOrderDeliveryStatus,
+  bulkUpdatePaymentStatus,
+  bulkUpdateDeliveryStatus,
   updateOrderPaymentMode,
   updateOrderItem,
 } from "@/app/actions/orders";
@@ -16,14 +18,28 @@ import { addToDailyMenu, removeFromDailyMenu } from "@/app/actions/daily-menu";
 import { OrdersDayPanel } from "./orders-day-panel";
 import { OrdersTable } from "./orders-table";
 import { SubmitButton } from "@/components/submit-button";
+import { Pagination } from "@/components/pagination";
+
+const PAGE_SIZE = 25;
 
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; payment?: string; delivery?: string }>;
+  searchParams: Promise<{
+    date?: string;
+    payment?: string;
+    delivery?: string;
+    search?: string;
+    page?: string;
+  }>;
 }) {
-  const { date: dateParam, payment: paymentParam, delivery: deliveryParam } =
-    await searchParams;
+  const {
+    date: dateParam,
+    payment: paymentParam,
+    delivery: deliveryParam,
+    search: searchParam,
+    page: pageParam,
+  } = await searchParams;
   const date = dateParam || toDateInputValue(new Date());
   const payment =
     paymentParam === "Paid" || paymentParam === "Unpaid" ? paymentParam : undefined;
@@ -31,25 +47,39 @@ export default async function OrdersPage({
     deliveryParam === "Delivered" || deliveryParam === "Pending"
       ? deliveryParam
       : undefined;
-  // The orders table only ever shows the single day selected as "Managing
-  // day" above it — a day's orders are naturally bounded, so there's no
-  // need to page through unrelated older days to find them.
+  // A customer-name search spans every day (paginated), overriding the
+  // single-day scope below — there was previously no way to answer "did
+  // this customer order last week" short of paging through days one by one.
+  const search = searchParam?.trim() || undefined;
+  const page = Math.max(1, Number(pageParam) || 1);
+  // Without a search, the orders table only ever shows the single day
+  // selected as "Managing day" above it — a day's orders are naturally
+  // bounded, so there's no need to page through unrelated older days to
+  // find them.
   const where = {
-    date: new Date(date),
+    ...(search
+      ? { customerName: { contains: search, mode: "insensitive" as const } }
+      : { date: new Date(date) }),
     ...(payment ? { paymentStatus: payment } : {}),
     ...(delivery ? { deliveryStatus: delivery } : {}),
   };
 
-  const [orders, foodItems, dailyMenuEntries] = await Promise.all([
+  const [orders, ordersCount, foodItems, dailyMenuEntries] = await Promise.all([
     prisma.order.findMany({
       where,
       // Most recently placed first; orderGroupId is just a tiebreaker so
       // every row sharing one still lands contiguously (required for the
       // batching below) — it's a random UUID, not chronological, so it
-      // can't be the primary sort on its own.
-      orderBy: [{ createdAt: "desc" }, { orderGroupId: "desc" }],
+      // can't be the primary sort on its own. Search mode spans many days,
+      // so it also sorts by date first (the single-day view doesn't need
+      // to, every row already shares one date).
+      orderBy: search
+        ? [{ date: "desc" }, { createdAt: "desc" }, { orderGroupId: "desc" }]
+        : [{ createdAt: "desc" }, { orderGroupId: "desc" }],
       include: { foodItem: true },
+      ...(search ? { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE } : {}),
     }),
+    search ? prisma.order.count({ where }) : Promise.resolve(0),
     prisma.foodItem.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
@@ -60,6 +90,7 @@ export default async function OrdersPage({
       },
     }),
   ]);
+  const totalPages = Math.max(1, Math.ceil(ordersCount / PAGE_SIZE));
 
   // "The menu for that day" = whatever's been explicitly added to that day's
   // menu, so the Order checklist only offers what's realistically available —
@@ -178,6 +209,18 @@ export default async function OrdersPage({
         <input suppressHydrationWarning type="hidden" name="date" value={date} />
         <div>
           <label className="block text-xs font-medium text-brand-brown-light">
+            Search customer / unit (all days)
+          </label>
+          <input suppressHydrationWarning
+            name="search"
+            type="text"
+            placeholder="e.g. A-1234"
+            defaultValue={search ?? ""}
+            className="mt-1 w-56 rounded-md border border-brand-tan px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-brand-brown-light">
             Payment
           </label>
           <select
@@ -216,14 +259,28 @@ export default async function OrdersPage({
         >
           Reset
         </Link>
+        <Link
+          href={`/orders/prep?date=${date}`}
+          className="rounded-md border border-brand-tan px-4 py-2 text-sm font-medium text-brand-brown hover:bg-brand-cream"
+        >
+          Print prep list
+        </Link>
       </form>
+      {search && (
+        <p className="-mt-4 text-xs text-brand-brown-light">
+          Showing results for &quot;{search}&quot; across all days — not just
+          the Managing day above.
+        </p>
+      )}
 
       <section className="overflow-hidden rounded-xl border border-brand-tan bg-white shadow-sm">
         {groups.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-brand-brown-light">
-            {payment || delivery
-              ? "No orders match this filter for this day."
-              : "No orders recorded for this day yet."}
+            {search
+              ? "No orders match this search."
+              : payment || delivery
+                ? "No orders match this filter for this day."
+                : "No orders recorded for this day yet."}
           </p>
         ) : (
           <OrdersTable
@@ -241,6 +298,20 @@ export default async function OrdersPage({
             deleteOrder={deleteOrder}
             deleteOrderBatch={deleteOrderBatch}
             bulkDeleteOrders={deleteOrders}
+            bulkUpdatePaymentStatus={bulkUpdatePaymentStatus}
+            bulkUpdateDeliveryStatus={bulkUpdateDeliveryStatus}
+          />
+        )}
+        {search && (
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            buildHref={(p) => {
+              const params = new URLSearchParams({ date, search, page: String(p) });
+              if (payment) params.set("payment", payment);
+              if (delivery) params.set("delivery", delivery);
+              return `/orders?${params.toString()}`;
+            }}
           />
         )}
       </section>

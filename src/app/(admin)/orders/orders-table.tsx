@@ -213,6 +213,8 @@ export function OrdersTable({
   deleteOrder,
   deleteOrderBatch,
   bulkDeleteOrders,
+  bulkUpdatePaymentStatus,
+  bulkUpdateDeliveryStatus,
 }: {
   groups: Group[];
   toggleOrderPaymentStatus: (
@@ -230,6 +232,14 @@ export function OrdersTable({
   deleteOrder: (id: string) => void | Promise<void>;
   deleteOrderBatch: (groupKey: string) => void | Promise<void>;
   bulkDeleteOrders: (ids: string[]) => void | Promise<void>;
+  bulkUpdatePaymentStatus: (
+    ids: string[],
+    paymentStatus: string
+  ) => void | Promise<void>;
+  bulkUpdateDeliveryStatus: (
+    ids: string[],
+    deliveryStatus: string
+  ) => void | Promise<void>;
 }) {
   const [sort, setSort] = useState<SortState<SortKey>>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -272,9 +282,48 @@ export function OrdersTable({
     setSelected(new Set());
   }
 
+  // Payment/delivery status applies per whole batch (same as the per-row
+  // toggle above), so bulk-marking updates every batch touched by the
+  // current selection — not just the individually checked item rows.
+  async function handleMarkPaid() {
+    await bulkUpdatePaymentStatus(Array.from(selected), "Paid");
+    setSelected(new Set());
+  }
+
+  async function handleMarkDelivered() {
+    await bulkUpdateDeliveryStatus(Array.from(selected), "Delivered");
+    setSelected(new Set());
+  }
+
   return (
     <>
-      <BulkDeleteBar count={selected.size} action={handleBulkDelete} />
+      <BulkDeleteBar
+        count={selected.size}
+        action={handleBulkDelete}
+        extraActions={
+          selected.size > 0 ? (
+            <div className="flex items-center gap-2">
+              <form suppressHydrationWarning action={handleMarkPaid}>
+                <SubmitButton
+                  spinnerClassName="h-3 w-3"
+                  className="rounded-md px-3 py-1.5 text-xs font-medium text-brand-brown hover:bg-brand-cream"
+                >
+                  Mark paid
+                </SubmitButton>
+              </form>
+              <form suppressHydrationWarning action={handleMarkDelivered}>
+                <SubmitButton
+                  spinnerClassName="h-3 w-3"
+                  className="rounded-md px-3 py-1.5 text-xs font-medium text-brand-brown hover:bg-brand-cream"
+                >
+                  Mark delivered
+                </SubmitButton>
+              </form>
+            </div>
+          ) : null
+        }
+      />
+      <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
       <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
         <tr>
@@ -469,6 +518,7 @@ export function OrdersTable({
         </CollapsibleGroup>
       ))}
       </table>
+      </div>
     </>
   );
 }

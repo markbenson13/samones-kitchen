@@ -95,6 +95,7 @@ export function ExpensesTable({
   return (
     <>
       <BulkDeleteBar count={selected.size} action={handleBulkDelete} />
+      <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
       <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
         <tr>
@@ -182,6 +183,7 @@ export function ExpensesTable({
         </tr>
       </tfoot>
       </table>
+      </div>
     </>
   );
 }

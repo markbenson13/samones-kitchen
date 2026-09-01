@@ -22,13 +22,28 @@ const PAGE_SIZE = 25;
 export default async function MarketCostsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; page?: string }>;
+  searchParams: Promise<{
+    from?: string;
+    to?: string;
+    page?: string;
+    search?: string;
+  }>;
 }) {
-  const { from: fromParam, to: toParam, page: pageParam } = await searchParams;
+  const {
+    from: fromParam,
+    to: toParam,
+    page: pageParam,
+    search: searchParam,
+  } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
+  const search = searchParam?.trim() || undefined;
 
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
+  // Local calendar date (matching toDateInputValue's own convention below),
+  // not a bare UTC-midnight snap — those two disagree for up to a day
+  // depending on server timezone (e.g. UTC+8 machines cross into "tomorrow"
+  // locally 8 hours before UTC does), which silently excluded today's own
+  // freshly-added rows from the default range below.
+  const today = new Date(toDateInputValue(new Date()));
   const defaultFrom = new Date(today);
   defaultFrom.setUTCDate(defaultFrom.getUTCDate() - (DEFAULT_RANGE_DAYS - 1));
 
@@ -38,7 +53,12 @@ export default async function MarketCostsPage({
   const toDateExclusive = new Date(toDate);
   toDateExclusive.setUTCDate(toDateExclusive.getUTCDate() + 1);
 
-  const where = { date: { gte: fromDate, lt: toDateExclusive } };
+  const where = {
+    date: { gte: fromDate, lt: toDateExclusive },
+    ...(search
+      ? { description: { contains: search, mode: "insensitive" as const } }
+      : {}),
+  };
 
   const [marketCosts, totalCount, totalAgg] = await Promise.all([
     prisma.marketCost.findMany({
@@ -92,6 +112,18 @@ export default async function MarketCostsPage({
       <form suppressHydrationWarning className="flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-xs font-medium text-brand-brown-light">
+            Search
+          </label>
+          <input suppressHydrationWarning
+            name="search"
+            type="text"
+            placeholder="Description"
+            defaultValue={search ?? ""}
+            className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-brand-brown-light">
             From
           </label>
           <input suppressHydrationWarning
@@ -143,13 +175,24 @@ export default async function MarketCostsPage({
         bulkDeleteAction={deleteMarketCosts}
         totalLabel={`Total (${formatRangeDate(fromDate)} – ${formatRangeDate(toDate)})`}
         total={total}
+        emptyMessage={
+          search
+            ? "No market costs match this search."
+            : "No market costs logged in this period."
+        }
         pagination={
           <Pagination
             page={page}
             totalPages={totalPages}
-            buildHref={(p) =>
-              `/market-costs?from=${utcDateKey(fromDate)}&to=${utcDateKey(toDate)}&page=${p}`
-            }
+            buildHref={(p) => {
+              const params = new URLSearchParams({
+                from: utcDateKey(fromDate),
+                to: utcDateKey(toDate),
+                page: String(p),
+              });
+              if (search) params.set("search", search);
+              return `/market-costs?${params.toString()}`;
+            }}
           />
         }
       />

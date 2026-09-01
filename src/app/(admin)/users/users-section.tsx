@@ -110,6 +110,7 @@ export function UsersSection({
               Pending approval
             </h2>
           </div>
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <tbody>
               {pending.map((user) => (
@@ -149,6 +150,7 @@ export function UsersSection({
               ))}
             </tbody>
           </table>
+          </div>
         </section>
       )}
 
@@ -161,6 +163,7 @@ export function UsersSection({
             No approved users yet.
           </p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <tbody>
               {approved.map((user) => {
@@ -225,6 +228,7 @@ export function UsersSection({
               })}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </div>

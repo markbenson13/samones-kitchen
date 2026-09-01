@@ -100,6 +100,9 @@ export default async function SalesPage({
   }
 
   const today = toDateInputValue(new Date());
+  const hasNegativeLeftover = groups.some((group) =>
+    group.items.some((sale) => computeLeftoverAndTotal(sale).leftover < 0)
+  );
 
   return (
     <div className="space-y-8">
@@ -109,6 +112,15 @@ export default async function SalesPage({
           Record each sale for a food item.
         </p>
       </div>
+
+      {hasNegativeLeftover && (
+        <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+          ⚠ Some rows below (marked in red) show more sold than made — that
+          happens once orders for an item pass its recorded &quot;Tubs
+          made,&quot; and isn&apos;t itself an error. Edit that row and
+          update Tubs made once you know the real total made for the day.
+        </p>
+      )}
 
       <form suppressHydrationWarning className="flex flex-wrap items-end gap-3">
         <div>

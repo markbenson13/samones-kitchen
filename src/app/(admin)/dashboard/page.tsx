@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoney, toNumber } from "@/lib/money";
-import { utcDateKey, formatRangeDate } from "@/lib/date";
+import { toDateInputValue, utcDateKey, formatRangeDate } from "@/lib/date";
 import { IncomeChart } from "./income-chart";
 import { SubmitButton } from "@/components/submit-button";
 import { StatCard } from "@/components/stat-card";
@@ -16,8 +16,12 @@ export default async function DashboardPage({
 }) {
   const { from: fromParam, to: toParam, day: dayParam } = await searchParams;
 
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
+  // Local calendar date (matching toDateInputValue's own convention below),
+  // not a bare UTC-midnight snap — those two disagree for up to a day
+  // depending on server timezone (e.g. UTC+8 machines cross into "tomorrow"
+  // locally 8 hours before UTC does), which silently excluded today's own
+  // freshly-added rows from every "today"-scoped default view below.
+  const today = new Date(toDateInputValue(new Date()));
   const defaultFrom = new Date(today);
   defaultFrom.setUTCDate(defaultFrom.getUTCDate() - (DEFAULT_RANGE_DAYS - 1));
 

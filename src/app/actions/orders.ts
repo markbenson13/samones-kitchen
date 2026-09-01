@@ -394,6 +394,47 @@ export async function toggleOrderDeliveryStatus(
   revalidatePath("/sales");
 }
 
+// Resolves the given order ids to their batches (same "whole batch, not
+// just the checked row" semantics as toggleOrderPaymentStatus/
+// toggleOrderDeliveryStatus above) and updates every order in each one —
+// lets a bulk-selected set of rows be marked paid/delivered together
+// instead of one batch at a time.
+async function batchWhereForOrderIds(orderIds: string[]) {
+  const orders = await prisma.order.findMany({
+    where: { id: { in: orderIds } },
+    select: { id: true, orderGroupId: true },
+  });
+  const groupKeys = orders.map((o) => o.orderGroupId ?? o.id);
+  return { OR: [{ orderGroupId: { in: groupKeys } }, { id: { in: groupKeys } }] };
+}
+
+export async function bulkUpdatePaymentStatus(
+  orderIds: string[],
+  paymentStatus: string
+) {
+  await requireAdmin();
+  if (orderIds.length === 0) return;
+  await prisma.order.updateMany({
+    where: await batchWhereForOrderIds(orderIds),
+    data: { paymentStatus },
+  });
+  revalidatePath("/orders");
+}
+
+export async function bulkUpdateDeliveryStatus(
+  orderIds: string[],
+  deliveryStatus: string
+) {
+  await requireAdmin();
+  if (orderIds.length === 0) return;
+  await prisma.order.updateMany({
+    where: await batchWhereForOrderIds(orderIds),
+    data: { deliveryStatus },
+  });
+  revalidatePath("/orders");
+  revalidatePath("/sales");
+}
+
 export async function updateOrderPaymentMode(formData: FormData) {
   await requireAdmin();
   const groupKey = String(formData.get("groupKey") ?? "");
