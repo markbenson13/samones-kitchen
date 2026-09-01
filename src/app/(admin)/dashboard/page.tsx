@@ -12,9 +12,9 @@ const MAX_CHART_DAYS = 366;
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; day?: string }>;
 }) {
-  const { from: fromParam, to: toParam } = await searchParams;
+  const { from: fromParam, to: toParam, day: dayParam } = await searchParams;
 
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
@@ -23,6 +23,11 @@ export default async function DashboardPage({
 
   const fromDate = fromParam ? new Date(fromParam) : defaultFrom;
   const toDate = toParam ? new Date(toParam) : today;
+  // The "Right now" section has its own day filter, independent of the
+  // range above — it defaults to today but can look back at any past day's
+  // sales.
+  const selectedDay = dayParam ? new Date(dayParam) : today;
+  const isToday = utcDateKey(selectedDay) === utcDateKey(today);
   // `lt` the day after `to` so the whole `to` day (stored at UTC midnight) is included.
   const toDateExclusive = new Date(toDate);
   toDateExclusive.setUTCDate(toDateExclusive.getUTCDate() + 1);
@@ -46,8 +51,8 @@ export default async function DashboardPage({
     topItemGroups,
     unpaidRows,
     pendingRows,
-    todaysSales,
-    todaysCosts,
+    selectedDaySales,
+    selectedDayCosts,
   ] = await Promise.all([
     prisma.sale.findMany({
       where: dateRangeWhere,
@@ -77,15 +82,15 @@ export default async function DashboardPage({
       where: { deliveryStatus: "Pending" },
       select: { id: true, orderGroupId: true },
     }),
-    // Deliberately today only, not date-range-scoped — same reasoning as
-    // unpaid/pending above: this is a "how's today going" snapshot, so it
-    // should stay put regardless of whatever historical range is selected.
+    // Scoped to selectedDay (its own filter, defaulting to today), not the
+    // from/to range above — deliberately independent, same reasoning as
+    // unpaid/pending: this is a single day's snapshot, not a period metric.
     prisma.sale.aggregate({
-      where: { date: today },
+      where: { date: selectedDay },
       _sum: { totalAmount: true, quantity: true },
     }),
     prisma.marketCost.aggregate({
-      where: { date: today },
+      where: { date: selectedDay },
       _sum: { amount: true },
     }),
   ]);
@@ -120,16 +125,16 @@ export default async function DashboardPage({
   const pendingCount = new Set(pendingRows.map((r) => r.orderGroupId ?? r.id))
     .size;
 
-  const todaysSalesTotal = toNumber(
-    todaysSales._sum.totalAmount?.toString() ?? "0"
+  const selectedDaySalesTotal = toNumber(
+    selectedDaySales._sum.totalAmount?.toString() ?? "0"
   );
-  const todaysSalesQuantity = todaysSales._sum.quantity ?? 0;
-  const todaysCostsTotal = toNumber(
-    todaysCosts._sum.amount?.toString() ?? "0"
+  const selectedDaySalesQuantity = selectedDaySales._sum.quantity ?? 0;
+  const selectedDayCostsTotal = toNumber(
+    selectedDayCosts._sum.amount?.toString() ?? "0"
   );
   // Same definition as the range's "Net income" card above — sales minus
   // market costs, deliberately excluding expenses.
-  const todaysNetIncome = todaysSalesTotal - todaysCostsTotal;
+  const selectedDayNetIncome = selectedDaySalesTotal - selectedDayCostsTotal;
 
   const topTenGroups = [...topItemGroups]
     .sort(
@@ -237,13 +242,16 @@ export default async function DashboardPage({
         >
           Reset
         </Link>
+        {/* Preserves the "Right now" section's own day filter (below) when
+            this range filter is applied — the two are independent. */}
+        <input suppressHydrationWarning type="hidden" name="day" value={dayParam ?? ""} />
       </form>
 
       <div>
         <h2 className="text-sm font-medium text-brand-brown">
           {formatRangeDate(fromDate)} – {formatRangeDate(toDate)}
         </h2>
-        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard label="Total sales" value={formatMoney(totalSales)} />
           <StatCard label="Total market costs" value={formatMoney(totalCosts)} />
           <StatCard label="Total expenses" value={formatMoney(totalExpenses)} />
@@ -257,26 +265,71 @@ export default async function DashboardPage({
       </div>
 
       <div>
-        <h2 className="text-sm font-medium text-brand-brown">
-          Right now
-        </h2>
-        <p className="mt-1 text-xs text-brand-brown-light">
-          Not affected by the date filter above.
-        </p>
-        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Link href={`/sales?date=${utcDateKey(today)}`} className="block">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-medium text-brand-brown">
+              {isToday ? "Right now" : `Sales for ${formatRangeDate(selectedDay)}`}
+            </h2>
+            <p className="mt-1 text-xs text-brand-brown-light">
+              Unpaid orders and pending deliveries are always all-time.
+              Sales and net income below are for the day picked here — not
+              the range filter above.
+            </p>
+          </div>
+          <form suppressHydrationWarning className="flex flex-wrap items-end gap-3">
+            <input suppressHydrationWarning type="hidden" name="from" value={fromParam ?? ""} />
+            <input suppressHydrationWarning type="hidden" name="to" value={toParam ?? ""} />
+            <div>
+              <label className="block text-xs font-medium text-brand-brown-light">
+                Day
+              </label>
+              <input suppressHydrationWarning
+                name="day"
+                type="date"
+                defaultValue={utcDateKey(selectedDay)}
+                className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
+              />
+            </div>
+            <SubmitButton
+              pendingText="Applying…"
+              className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
+            >
+              Apply
+            </SubmitButton>
+            {!isToday && (
+              <Link
+                href={(() => {
+                  const params = new URLSearchParams();
+                  if (fromParam) params.set("from", fromParam);
+                  if (toParam) params.set("to", toParam);
+                  const qs = params.toString();
+                  return qs ? `/dashboard?${qs}` : "/dashboard";
+                })()}
+                className="rounded-md border border-brand-tan px-4 py-2 text-sm font-medium text-brand-brown hover:bg-brand-cream"
+              >
+                Today
+              </Link>
+            )}
+          </form>
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Link href={`/sales?date=${utcDateKey(selectedDay)}`} className="block">
             <StatCard
-              label="Today's sales"
-              value={formatMoney(todaysSalesTotal)}
-              subtitle={`${todaysSalesQuantity} sold · today`}
+              label={isToday ? "Today's sales" : "Sales"}
+              value={formatMoney(selectedDaySalesTotal)}
+              subtitle={
+                isToday
+                  ? `${selectedDaySalesQuantity} sold · today`
+                  : `${selectedDaySalesQuantity} sold · ${formatRangeDate(selectedDay)}`
+              }
               tone="neutral"
             />
           </Link>
           <StatCard
-            label="Today's net income"
-            value={formatMoney(todaysNetIncome)}
+            label={isToday ? "Today's net income" : "Net income"}
+            value={formatMoney(selectedDayNetIncome)}
             subtitle="Sales − market costs"
-            tone={todaysNetIncome >= 0 ? "positive" : "negative"}
+            tone={selectedDayNetIncome >= 0 ? "positive" : "negative"}
           />
           <Link href="/orders?payment=Unpaid" className="block">
             <StatCard
@@ -297,8 +350,8 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm lg:col-span-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm xl:col-span-2">
           <h2 className="text-sm font-medium text-brand-brown">
             {formatRangeDate(fromDate)} – {formatRangeDate(toDate)}
           </h2>
@@ -317,21 +370,28 @@ export default async function DashboardPage({
           ) : (
             <ol className="mt-4 space-y-3">
               {topTen.map((item, i) => (
-                <li key={item.id} className="flex items-center gap-3">
+                <li key={item.id} className="flex items-start gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-cream text-xs font-semibold text-brand-brown">
                     {i + 1}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-sm text-brand-brown">
-                    {item.name}
-                  </span>
-                  <span className="shrink-0 text-right text-sm">
-                    <span className="font-medium text-brand-brown">
-                      {formatMoney(item.revenue)}
-                    </span>
-                    <span className="ml-1.5 text-xs text-brand-brown-light">
-                      {item.quantity} sold
-                    </span>
-                  </span>
+                  {/* The name gets its own full-width line instead of
+                      sharing one with the price/qty — sharing a line meant
+                      the name was squeezed down to whatever the price block
+                      didn't need, which truncated hard (or, before a
+                      floor was added, could shrink to 0 width and vanish
+                      entirely) whenever this card was narrow, e.g. in the
+                      side-by-side layout next to the chart. */}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-brand-brown">
+                      {item.name}
+                    </p>
+                    <p className="text-xs text-brand-brown-light">
+                      <span className="font-medium text-brand-brown">
+                        {formatMoney(item.revenue)}
+                      </span>
+                      <span className="ml-1.5">{item.quantity} sold</span>
+                    </p>
+                  </div>
                 </li>
               ))}
             </ol>
