@@ -14,10 +14,10 @@ import {
 
 const NAV_LINKS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/orders", label: "Orders", icon: ClipboardList },
   { href: "/food-items", label: "Food Items", icon: UtensilsCrossed },
-  { href: "/market-costs", label: "Market Costs", icon: ShoppingBasket },
+  { href: "/orders", label: "Orders", icon: ClipboardList },
   { href: "/sales", label: "Sales", icon: Receipt },
+  { href: "/market-costs", label: "Market Costs", icon: ShoppingBasket },
   { href: "/expenses", label: "Expenses", icon: Wallet },
 ];
 

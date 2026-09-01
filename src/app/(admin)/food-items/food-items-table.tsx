@@ -29,12 +29,14 @@ export function FoodItemsTable({
   deleteAction,
   bulkDeleteAction,
   onEdit,
+  emptyMessage = "No food items yet.",
 }: {
   items: FoodItemRow[];
   toggleAction: (id: string, isActive: boolean) => void | Promise<void>;
   deleteAction: (id: string) => void | Promise<void>;
   bulkDeleteAction: (ids: string[]) => void | Promise<void>;
   onEdit: (item: FoodItemRow) => void;
+  emptyMessage?: string;
 }) {
   const [sort, setSort] = useState<SortState<SortKey>>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -210,7 +212,7 @@ export function FoodItemsTable({
               colSpan={8}
               className="px-4 py-6 text-center text-sm text-brand-brown-light"
             >
-              No food items yet.
+              {emptyMessage}
             </td>
           </tr>
         )}

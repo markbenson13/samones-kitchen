@@ -17,6 +17,7 @@ type CostRow = {
   description: string;
   quantity: string | null;
   amount: string;
+  date: string;
 };
 
 type Group = {
@@ -50,12 +51,14 @@ export function MarketCostsTable({
   groups,
   deleteAction,
   bulkDeleteAction,
+  onEdit,
   totalLabel,
   total,
 }: {
   groups: Group[];
   deleteAction: (id: string) => void | Promise<void>;
   bulkDeleteAction: (ids: string[]) => void | Promise<void>;
+  onEdit: (cost: CostRow) => void;
   totalLabel: string;
   total: number;
 }) {
@@ -153,18 +156,27 @@ export function MarketCostsTable({
               </td>
               <td className="px-4 py-3">{formatMoney(cost.amount)}</td>
               <td className="px-4 py-3 text-right">
-                <form suppressHydrationWarning action={deleteAction.bind(null, cost.id)}>
-                  <ConfirmSubmitButton
-                    spinnerClassName="h-3 w-3"
-                    confirmTitle="Delete this market cost?"
-                    confirmMessage={`This will permanently delete "${cost.description}". This cannot be undone.`}
-                    confirmLabel="Delete"
-                    danger
-                    className="text-xs font-medium text-red-600 hover:underline"
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => onEdit(cost)}
+                    className="text-xs font-medium text-brand-brown hover:underline"
                   >
-                    Delete
-                  </ConfirmSubmitButton>
-                </form>
+                    Edit
+                  </button>
+                  <form suppressHydrationWarning action={deleteAction.bind(null, cost.id)}>
+                    <ConfirmSubmitButton
+                      spinnerClassName="h-3 w-3"
+                      confirmTitle="Delete this market cost?"
+                      confirmMessage={`This will permanently delete "${cost.description}". This cannot be undone.`}
+                      confirmLabel="Delete"
+                      danger
+                      className="text-xs font-medium text-red-600 hover:underline"
+                    >
+                      Delete
+                    </ConfirmSubmitButton>
+                  </form>
+                </div>
               </td>
             </tr>
           ))}

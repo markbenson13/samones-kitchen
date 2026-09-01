@@ -29,10 +29,22 @@ export function DailyMenuManager({
     <CollapsibleSection
       title="Set the menu for a day"
       description="Add a dish to a day's menu — type a new name and it creates the food item on the spot (cost/selling price default to ₱0, fix those up on the Food Items page). No need to log a sale or market cost first."
+      defaultOpen={false}
       collapsedSummary={
-        todaysMenu.length === 0
-          ? "Nothing set for this day yet."
-          : `${todaysMenu.length} dish${todaysMenu.length === 1 ? "" : "es"} set for this day.`
+        todaysMenu.length === 0 ? (
+          "Nothing set for this day yet."
+        ) : (
+          <span className="flex flex-wrap gap-1.5">
+            {todaysMenu.map((item) => (
+              <span
+                key={item.dailyMenuId}
+                className="rounded-full bg-brand-cream px-2 py-0.5 text-brand-brown"
+              >
+                {item.name}
+              </span>
+            ))}
+          </span>
+        )
       }
     >
       <form suppressHydrationWarning

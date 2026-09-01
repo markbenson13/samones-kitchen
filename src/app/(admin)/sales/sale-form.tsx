@@ -61,8 +61,13 @@ export function SaleForm({
     return () => clearTimeout(timer);
   }, [justSaved]);
 
-  // Load the selected row into the form when an edit is requested.
-  const [syncedEditingSale, setSyncedEditingSale] = useState(editingSale);
+  // Load the selected row into the form when an edit is requested. Seeded
+  // with null (not `editingSale`) so this still syncs correctly the first
+  // time this component renders — it can mount directly into an
+  // already-in-progress edit now that its parent section is collapsible and
+  // only mounts this form once expanded, rather than always being mounted.
+  const [syncedEditingSale, setSyncedEditingSale] =
+    useState<EditingSale | null>(null);
   if (editingSale && editingSale !== syncedEditingSale) {
     setSyncedEditingSale(editingSale);
     setId(editingSale.id);

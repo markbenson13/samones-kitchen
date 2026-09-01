@@ -20,17 +20,24 @@ export function FoodItemForm({
   items,
   categories,
   editingItem,
+  onCancelEdit,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   items: FoodItemOption[];
   categories: string[];
   editingItem?: FoodItemOption | null;
+  onCancelEdit?: () => void;
 }) {
   const [fields, setFields] = useState(emptyState);
 
   // Adjust local fields when a new item is selected for editing, without an
   // effect: https://react.dev/learn/you-might-not-need-an-effect
-  const [syncedEditingItem, setSyncedEditingItem] = useState(editingItem);
+  // Seeded with null (not `editingItem`) so this still syncs correctly the
+  // first time this component renders — it can mount directly into an
+  // already-in-progress edit now that its parent section is collapsible and
+  // only mounts this form once expanded, rather than always being mounted.
+  const [syncedEditingItem, setSyncedEditingItem] =
+    useState<FoodItemOption | null>(null);
   if (editingItem && editingItem !== syncedEditingItem) {
     setSyncedEditingItem(editingItem);
     setFields({
@@ -62,6 +69,7 @@ export function FoodItemForm({
   async function handleAction(formData: FormData) {
     await action(formData);
     setFields(emptyState);
+    onCancelEdit?.();
   }
 
   return (
@@ -158,7 +166,10 @@ export function FoodItemForm({
         {fields.id && (
           <button
             type="button"
-            onClick={() => setFields(emptyState)}
+            onClick={() => {
+              setFields(emptyState);
+              onCancelEdit?.();
+            }}
             className="rounded-md border border-brand-tan px-4 py-2 text-sm font-medium text-brand-brown hover:bg-brand-cream"
           >
             Cancel

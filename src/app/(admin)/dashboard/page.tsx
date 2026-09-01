@@ -39,37 +39,56 @@ export default async function DashboardPage({
 
   const dateRangeWhere = { date: { gte: fromDate, lt: toDateExclusive } };
 
-  const [sales, costs, expenses, topItemGroups, unpaidRows, pendingRows] =
-    await Promise.all([
-      prisma.sale.findMany({
-        where: dateRangeWhere,
-        select: { date: true, totalAmount: true },
-      }),
-      prisma.marketCost.findMany({
-        where: dateRangeWhere,
-        select: { date: true, amount: true },
-      }),
-      prisma.expense.findMany({
-        where: dateRangeWhere,
-        select: { date: true, amount: true },
-      }),
-      prisma.sale.groupBy({
-        by: ["foodItemId"],
-        where: dateRangeWhere,
-        _sum: { totalAmount: true, quantity: true },
-      }),
-      // All-time, deliberately not date-scoped — "unpaid" is a current-state
-      // flag, not a period metric. An order from weeks ago is still owed
-      // today regardless of what range is selected above.
-      prisma.order.findMany({
-        where: { paymentStatus: "Unpaid" },
-        select: { id: true, orderGroupId: true, quantity: true, unitPrice: true },
-      }),
-      prisma.order.findMany({
-        where: { deliveryStatus: "Pending" },
-        select: { id: true, orderGroupId: true },
-      }),
-    ]);
+  const [
+    sales,
+    costs,
+    expenses,
+    topItemGroups,
+    unpaidRows,
+    pendingRows,
+    todaysSales,
+    todaysCosts,
+  ] = await Promise.all([
+    prisma.sale.findMany({
+      where: dateRangeWhere,
+      select: { date: true, totalAmount: true },
+    }),
+    prisma.marketCost.findMany({
+      where: dateRangeWhere,
+      select: { date: true, amount: true },
+    }),
+    prisma.expense.findMany({
+      where: dateRangeWhere,
+      select: { date: true, amount: true },
+    }),
+    prisma.sale.groupBy({
+      by: ["foodItemId"],
+      where: dateRangeWhere,
+      _sum: { totalAmount: true, quantity: true },
+    }),
+    // All-time, deliberately not date-scoped — "unpaid" is a current-state
+    // flag, not a period metric. An order from weeks ago is still owed
+    // today regardless of what range is selected above.
+    prisma.order.findMany({
+      where: { paymentStatus: "Unpaid" },
+      select: { id: true, orderGroupId: true, quantity: true, unitPrice: true },
+    }),
+    prisma.order.findMany({
+      where: { deliveryStatus: "Pending" },
+      select: { id: true, orderGroupId: true },
+    }),
+    // Deliberately today only, not date-range-scoped — same reasoning as
+    // unpaid/pending above: this is a "how's today going" snapshot, so it
+    // should stay put regardless of whatever historical range is selected.
+    prisma.sale.aggregate({
+      where: { date: today },
+      _sum: { totalAmount: true, quantity: true },
+    }),
+    prisma.marketCost.aggregate({
+      where: { date: today },
+      _sum: { amount: true },
+    }),
+  ]);
 
   const totalSales = sales.reduce(
     (sum, sale) => sum + toNumber(sale.totalAmount.toString()),
@@ -83,7 +102,10 @@ export default async function DashboardPage({
     (sum, expense) => sum + toNumber(expense.amount.toString()),
     0
   );
-  const netIncome = totalSales - totalCosts - totalExpenses;
+  // Deliberately excludes expenses — net income here is the food business's
+  // own margin (sales minus cost of goods), not the fuller post-overhead
+  // figure. That one lives on the Expenses page as "Available income".
+  const netIncome = totalSales - totalCosts;
 
   // Batches (orderGroupId ?? id) are deduped in JS, not via Prisma groupBy —
   // groupBy would collapse every legacy orderGroupId:null row into one
@@ -97,6 +119,17 @@ export default async function DashboardPage({
   );
   const pendingCount = new Set(pendingRows.map((r) => r.orderGroupId ?? r.id))
     .size;
+
+  const todaysSalesTotal = toNumber(
+    todaysSales._sum.totalAmount?.toString() ?? "0"
+  );
+  const todaysSalesQuantity = todaysSales._sum.quantity ?? 0;
+  const todaysCostsTotal = toNumber(
+    todaysCosts._sum.amount?.toString() ?? "0"
+  );
+  // Same definition as the range's "Net income" card above — sales minus
+  // market costs, deliberately excluding expenses.
+  const todaysNetIncome = todaysSalesTotal - todaysCostsTotal;
 
   const topTenGroups = [...topItemGroups]
     .sort(
@@ -156,7 +189,7 @@ export default async function DashboardPage({
       sales: daySales,
       costs: dayCosts,
       expenses: dayExpenses,
-      net: daySales - dayCosts - dayExpenses,
+      net: daySales - dayCosts,
     };
   });
 
@@ -206,35 +239,62 @@ export default async function DashboardPage({
         </Link>
       </form>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total sales" value={formatMoney(totalSales)} />
-        <StatCard label="Total market costs" value={formatMoney(totalCosts)} />
-        <StatCard label="Total expenses" value={formatMoney(totalExpenses)} />
-        <StatCard
-          label="Net income"
-          value={formatMoney(netIncome)}
-          subtitle="Sales − market costs − expenses"
-          tone={netIncome >= 0 ? "positive" : "negative"}
-        />
+      <div>
+        <h2 className="text-sm font-medium text-brand-brown">
+          {formatRangeDate(fromDate)} – {formatRangeDate(toDate)}
+        </h2>
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Total sales" value={formatMoney(totalSales)} />
+          <StatCard label="Total market costs" value={formatMoney(totalCosts)} />
+          <StatCard label="Total expenses" value={formatMoney(totalExpenses)} />
+          <StatCard
+            label="Net income"
+            value={formatMoney(netIncome)}
+            subtitle="Sales − market costs"
+            tone={netIncome >= 0 ? "positive" : "negative"}
+          />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Link href="/orders?payment=Unpaid" className="block">
+      <div>
+        <h2 className="text-sm font-medium text-brand-brown">
+          Right now
+        </h2>
+        <p className="mt-1 text-xs text-brand-brown-light">
+          Not affected by the date filter above.
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Link href={`/sales?date=${utcDateKey(today)}`} className="block">
+            <StatCard
+              label="Today's sales"
+              value={formatMoney(todaysSalesTotal)}
+              subtitle={`${todaysSalesQuantity} sold · today`}
+              tone="neutral"
+            />
+          </Link>
           <StatCard
-            label="Unpaid orders"
-            value={`${unpaidCount} order${unpaidCount === 1 ? "" : "s"}`}
-            subtitle={`${formatMoney(unpaidTotal)} owed · all-time`}
-            tone={unpaidCount > 0 ? "negative" : "neutral"}
+            label="Today's net income"
+            value={formatMoney(todaysNetIncome)}
+            subtitle="Sales − market costs"
+            tone={todaysNetIncome >= 0 ? "positive" : "negative"}
           />
-        </Link>
-        <Link href="/orders?delivery=Pending" className="block">
-          <StatCard
-            label="Pending deliveries"
-            value={`${pendingCount} order${pendingCount === 1 ? "" : "s"}`}
-            subtitle="All-time"
-            tone="neutral"
-          />
-        </Link>
+          <Link href="/orders?payment=Unpaid" className="block">
+            <StatCard
+              label="Unpaid orders"
+              value={`${unpaidCount} order${unpaidCount === 1 ? "" : "s"}`}
+              subtitle={`${formatMoney(unpaidTotal)} owed · all-time`}
+              tone={unpaidCount > 0 ? "negative" : "neutral"}
+            />
+          </Link>
+          <Link href="/orders?delivery=Pending" className="block">
+            <StatCard
+              label="Pending deliveries"
+              value={`${pendingCount} order${pendingCount === 1 ? "" : "s"}`}
+              subtitle="All-time"
+              tone="neutral"
+            />
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

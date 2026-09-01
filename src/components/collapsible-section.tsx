@@ -9,20 +9,34 @@ export function CollapsibleSection({
   collapsedSummary,
   children,
   defaultOpen = true,
+  open: openProp,
+  onOpenChange,
 }: {
   title: string;
   description?: ReactNode;
   collapsedSummary?: ReactNode;
   children: ReactNode;
   defaultOpen?: boolean;
+  // Uncontrolled by default (internal state, seeded from defaultOpen). Pass
+  // both `open` and `onOpenChange` to drive it externally instead — e.g. to
+  // force it open when an edit starts elsewhere on the page.
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const open = openProp ?? internalOpen;
+
+  function toggle() {
+    const next = !open;
+    setInternalOpen(next);
+    onOpenChange?.(next);
+  }
 
   return (
     <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         className="flex w-full items-center gap-2 text-left"
       >
         <Chevron open={open} className="h-4 w-4" />

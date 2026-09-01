@@ -21,9 +21,18 @@ export function Combobox({
   const [highlighted, setHighlighted] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const filtered = options.filter((option) =>
-    option.toLowerCase().includes(value.trim().toLowerCase())
+  // If the current value is already an exact match (e.g. a pre-filled
+  // default like "Amina", or after picking an option), show every option
+  // instead of narrowing to just that one — the user is reconsidering a
+  // made choice here, not actively searching.
+  const isExactMatch = options.some(
+    (option) => option.toLowerCase() === value.trim().toLowerCase()
   );
+  const filtered = isExactMatch
+    ? options
+    : options.filter((option) =>
+        option.toLowerCase().includes(value.trim().toLowerCase())
+      );
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -58,6 +67,7 @@ export function Combobox({
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
         onKeyDown={(e) => {
           if (e.key === "ArrowDown") {
             e.preventDefault();

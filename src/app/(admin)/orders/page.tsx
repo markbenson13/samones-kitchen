@@ -6,71 +6,60 @@ import {
   createOrder,
   deleteOrder,
   deleteOrders,
+  deleteOrderBatch,
   toggleOrderPaymentStatus,
   toggleOrderDeliveryStatus,
   updateOrderPaymentMode,
+  updateOrderItem,
 } from "@/app/actions/orders";
 import { addToDailyMenu, removeFromDailyMenu } from "@/app/actions/daily-menu";
 import { OrdersDayPanel } from "./orders-day-panel";
 import { OrdersTable } from "./orders-table";
-import { Pagination } from "@/components/pagination";
 import { SubmitButton } from "@/components/submit-button";
-
-const PAGE_SIZE = 25;
 
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; payment?: string; delivery?: string }>;
+  searchParams: Promise<{ date?: string; payment?: string; delivery?: string }>;
 }) {
-  const { page: pageParam, payment: paymentParam, delivery: deliveryParam } =
+  const { date: dateParam, payment: paymentParam, delivery: deliveryParam } =
     await searchParams;
-  const page = Math.max(1, Number(pageParam) || 1);
+  const date = dateParam || toDateInputValue(new Date());
   const payment =
     paymentParam === "Paid" || paymentParam === "Unpaid" ? paymentParam : undefined;
   const delivery =
     deliveryParam === "Delivered" || deliveryParam === "Pending"
       ? deliveryParam
       : undefined;
+  // The orders table only ever shows the single day selected as "Managing
+  // day" above it — a day's orders are naturally bounded, so there's no
+  // need to page through unrelated older days to find them.
   const where = {
+    date: new Date(date),
     ...(payment ? { paymentStatus: payment } : {}),
     ...(delivery ? { deliveryStatus: delivery } : {}),
   };
 
-  const [orders, ordersCount, customerNameRows, foodItems, dailyMenuEntries] =
-    await Promise.all([
-      prisma.order.findMany({
-        where,
-        // Most recently placed first within a day; orderGroupId is just a
-        // tiebreaker so every row sharing one still lands contiguously
-        // (required for the batching below) — it's a random UUID, not
-        // chronological, so it can't be the primary sort on its own.
-        orderBy: [{ date: "desc" }, { createdAt: "desc" }, { orderGroupId: "desc" }],
-        include: { foodItem: true },
-        skip: (page - 1) * PAGE_SIZE,
-        take: PAGE_SIZE,
-      }),
-      prisma.order.count({ where }),
-      // Unpaginated — the "Add order" form's customer autocomplete should
-      // offer every customer ever ordered from, not just this page's.
-      prisma.order.findMany({
-        distinct: ["customerName"],
-        select: { customerName: true },
-        orderBy: { customerName: "asc" },
-      }),
-      prisma.foodItem.findMany({
-        where: { isActive: true },
-        orderBy: { name: "asc" },
-      }),
-      prisma.dailyMenu.findMany({
-        include: {
-          foodItem: { select: { id: true, name: true, sellingPrice: true } },
-        },
-      }),
-    ]);
-  const allCustomerNames = customerNameRows.map((o) => o.customerName);
-
-  const totalPages = Math.max(1, Math.ceil(ordersCount / PAGE_SIZE));
+  const [orders, foodItems, dailyMenuEntries] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      // Most recently placed first; orderGroupId is just a tiebreaker so
+      // every row sharing one still lands contiguously (required for the
+      // batching below) — it's a random UUID, not chronological, so it
+      // can't be the primary sort on its own.
+      orderBy: [{ createdAt: "desc" }, { orderGroupId: "desc" }],
+      include: { foodItem: true },
+    }),
+    prisma.foodItem.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.dailyMenu.findMany({
+      include: {
+        foodItem: { select: { id: true, name: true, sellingPrice: true } },
+      },
+    }),
+  ]);
 
   // "The menu for that day" = whatever's been explicitly added to that day's
   // menu, so the Order checklist only offers what's realistically available —
@@ -113,8 +102,10 @@ export default async function OrdersPage({
       totalAmount: number;
       items: {
         id: string;
+        foodItemId: string;
         foodItemName: string;
         quantity: number;
+        unitPrice: number;
         totalAmount: number;
         isSale: boolean;
       }[];
@@ -150,8 +141,10 @@ export default async function OrdersPage({
     batch.totalAmount += itemTotal;
     batch.items.push({
       id: order.id,
+      foodItemId: order.foodItemId,
       foodItemName: order.foodItem.name,
       quantity: order.quantity,
+      unitPrice: toNumber(order.unitPrice.toString()),
       totalAmount: itemTotal,
       isSale: order.isSale,
     });
@@ -178,11 +171,11 @@ export default async function OrdersPage({
           sellingPrice: item.sellingPrice.toString(),
         }))}
         allFoodItemNames={foodItems.map((item) => item.name)}
-        allCustomerNames={allCustomerNames}
-        defaultDate={toDateInputValue(new Date())}
+        defaultDate={date}
       />
 
       <form suppressHydrationWarning className="flex flex-wrap items-end gap-3">
+        <input suppressHydrationWarning type="hidden" name="date" value={date} />
         <div>
           <label className="block text-xs font-medium text-brand-brown-light">
             Payment
@@ -218,7 +211,7 @@ export default async function OrdersPage({
           Apply
         </SubmitButton>
         <Link
-          href="/orders"
+          href={`/orders?date=${date}`}
           className="rounded-md border border-brand-tan px-4 py-2 text-sm font-medium text-brand-brown hover:bg-brand-cream"
         >
           Reset
@@ -229,8 +222,8 @@ export default async function OrdersPage({
         {groups.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-brand-brown-light">
             {payment || delivery
-              ? "No orders match this filter."
-              : "No orders recorded yet."}
+              ? "No orders match this filter for this day."
+              : "No orders recorded for this day yet."}
           </p>
         ) : (
           <OrdersTable
@@ -238,20 +231,18 @@ export default async function OrdersPage({
             toggleOrderPaymentStatus={toggleOrderPaymentStatus}
             toggleOrderDeliveryStatus={toggleOrderDeliveryStatus}
             updateOrderPaymentMode={updateOrderPaymentMode}
+            updateOrderItem={updateOrderItem}
+            menuByDate={menuByDate}
+            allFoodItems={foodItems.map((item) => ({
+              id: item.id,
+              name: item.name,
+              sellingPrice: item.sellingPrice.toString(),
+            }))}
             deleteOrder={deleteOrder}
+            deleteOrderBatch={deleteOrderBatch}
             bulkDeleteOrders={deleteOrders}
           />
         )}
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          buildHref={(p) => {
-            const params = new URLSearchParams({ page: String(p) });
-            if (payment) params.set("payment", payment);
-            if (delivery) params.set("delivery", delivery);
-            return `/orders?${params.toString()}`;
-          }}
-        />
       </section>
     </div>
   );

@@ -181,7 +181,10 @@ export function SalesTable({
         >
           {group.items.map((sale) => {
             return (
-              <tr key={sale.id}>
+              <tr
+                key={sale.id}
+                className={sale.isSale ? "bg-brand-gold/10" : undefined}
+              >
                 <td className="px-4 py-3">
                   <input suppressHydrationWarning
                     type="checkbox"
@@ -208,6 +211,14 @@ export function SalesTable({
                   }`}
                 >
                   {sale.leftover}
+                  {sale.leftover < 0 && (
+                    <span
+                      className="ml-1 cursor-help"
+                      title="Sold more than Tubs made — update Tubs made to fix this."
+                    >
+                      ⚠
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3">{formatMoney(sale.unitPrice)}</td>
                 <td className="px-4 py-3">{formatMoney(sale.totalAmount)}</td>

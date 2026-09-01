@@ -63,16 +63,29 @@ export async function upsertSale(formData: FormData) {
   });
   if (!foodItem) throw new Error("Food item not found");
 
+  const existing = id ? await prisma.sale.findUnique({ where: { id } }) : null;
+
   // Defaults to the food item's current selling price. The form only lets
   // this be lowered when "Sale" is checked, e.g. clearing out leftover
   // stock at a discount instead of requiring a separate duplicate food item
   // per price variant.
-  let unitPrice: number | typeof foodItem.sellingPrice = foodItem.sellingPrice;
+  let unitPrice: number | typeof foodItem.sellingPrice;
   if (isSale && unitPriceInput) {
     const override = Number(unitPriceInput);
     if (!Number.isFinite(override) || override < 0)
       throw new Error("Invalid unit price");
     unitPrice = override;
+  } else if (existing && existing.foodItemId === foodItemId) {
+    // No price override submitted (the price field is disabled whenever
+    // "Sale" isn't checked, so disabled inputs never reach FormData) and
+    // this edits the same item — preserve its current price/total instead
+    // of silently re-deriving from the food item's live selling price,
+    // which may have moved since the orders that built up this row's total
+    // were placed (this row may hold real accumulated revenue now that
+    // Orders auto-contribute to it).
+    unitPrice = existing.unitPrice;
+  } else {
+    unitPrice = foodItem.sellingPrice;
   }
 
   const date = dateStr ? new Date(dateStr) : new Date();

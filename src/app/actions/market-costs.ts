@@ -9,9 +9,10 @@ async function requireAdmin() {
   if (!session) throw new Error("Unauthorized");
 }
 
-export async function createMarketCost(formData: FormData) {
+export async function upsertMarketCost(formData: FormData) {
   await requireAdmin();
 
+  const id = String(formData.get("id") ?? "").trim() || null;
   const description = String(formData.get("description") ?? "").trim();
   const quantity = String(formData.get("quantity") ?? "").trim() || null;
   const amount = Number(formData.get("amount"));
@@ -21,10 +22,13 @@ export async function createMarketCost(formData: FormData) {
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("Invalid amount");
 
   const date = dateStr ? new Date(dateStr) : new Date();
+  const data = { description, quantity, amount, date };
 
-  await prisma.marketCost.create({
-    data: { description, quantity, amount, date },
-  });
+  if (id) {
+    await prisma.marketCost.update({ where: { id }, data });
+  } else {
+    await prisma.marketCost.create({ data });
+  }
 
   revalidatePath("/market-costs");
   revalidatePath("/dashboard");
