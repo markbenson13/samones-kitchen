@@ -38,12 +38,12 @@ function ResetPasswordRow({
           }}
           className="flex flex-wrap items-end gap-3"
         >
-          <input type="hidden" name="id" value={userId} />
+          <input suppressHydrationWarning type="hidden" name="id" value={userId} />
           <div>
             <label className="block text-xs font-medium text-brand-brown-light">
               New password
             </label>
-            <input
+            <input suppressHydrationWarning
               name="newPassword"
               type="password"
               required
@@ -56,7 +56,7 @@ function ResetPasswordRow({
             <label className="block text-xs font-medium text-brand-brown-light">
               Confirm
             </label>
-            <input
+            <input suppressHydrationWarning
               name="confirmPassword"
               type="password"
               required

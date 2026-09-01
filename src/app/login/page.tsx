@@ -35,7 +35,7 @@ export default async function LoginPage({
             >
               Email
             </label>
-            <input
+            <input suppressHydrationWarning
               id="email"
               name="email"
               type="email"
@@ -52,7 +52,7 @@ export default async function LoginPage({
             >
               Password
             </label>
-            <input
+            <input suppressHydrationWarning
               id="password"
               name="password"
               type="password"

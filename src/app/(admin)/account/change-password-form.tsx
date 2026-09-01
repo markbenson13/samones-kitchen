@@ -32,7 +32,7 @@ export function ChangePasswordForm({
           <label className="block text-xs font-medium text-brand-brown-light">
             Current password
           </label>
-          <input
+          <input suppressHydrationWarning
             name="currentPassword"
             type="password"
             required
@@ -48,7 +48,7 @@ export function ChangePasswordForm({
         <label className="block text-xs font-medium text-brand-brown-light">
           New password
         </label>
-        <input
+        <input suppressHydrationWarning
           name="newPassword"
           type="password"
           required
@@ -65,7 +65,7 @@ export function ChangePasswordForm({
         <label className="block text-xs font-medium text-brand-brown-light">
           Confirm new password
         </label>
-        <input
+        <input suppressHydrationWarning
           name="confirmPassword"
           type="password"
           required

@@ -42,7 +42,7 @@ export function DailyMenuManager({
         }}
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
-        <input type="hidden" name="date" value={date} />
+        <input suppressHydrationWarning type="hidden" name="date" value={date} />
         <div className="lg:col-span-2">
           <label className="block text-xs font-medium text-brand-brown-light">
             Dish name

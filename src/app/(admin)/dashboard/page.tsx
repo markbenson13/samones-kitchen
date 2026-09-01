@@ -174,7 +174,7 @@ export default async function DashboardPage({
           <label className="block text-xs font-medium text-brand-brown-light">
             From
           </label>
-          <input
+          <input suppressHydrationWarning
             name="from"
             type="date"
             defaultValue={utcDateKey(fromDate)}
@@ -185,7 +185,7 @@ export default async function DashboardPage({
           <label className="block text-xs font-medium text-brand-brown-light">
             To
           </label>
-          <input
+          <input suppressHydrationWarning
             name="to"
             type="date"
             defaultValue={utcDateKey(toDate)}

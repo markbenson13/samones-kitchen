@@ -45,7 +45,7 @@ export function Combobox({
 
   return (
     <div ref={containerRef} className="relative">
-      <input
+      <input suppressHydrationWarning
         name={name}
         type="text"
         required={required}

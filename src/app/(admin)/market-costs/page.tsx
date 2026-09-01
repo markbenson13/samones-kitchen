@@ -99,7 +99,7 @@ export default async function MarketCostsPage({
             <label className="block text-xs font-medium text-brand-brown-light">
               Description
             </label>
-            <input
+            <input suppressHydrationWarning
               name="description"
               type="text"
               required
@@ -111,7 +111,7 @@ export default async function MarketCostsPage({
             <label className="block text-xs font-medium text-brand-brown-light">
               Quantity
             </label>
-            <input
+            <input suppressHydrationWarning
               name="quantity"
               type="text"
               placeholder="e.g. 2kl, 1/4"
@@ -122,7 +122,7 @@ export default async function MarketCostsPage({
             <label className="block text-xs font-medium text-brand-brown-light">
               Amount
             </label>
-            <input
+            <input suppressHydrationWarning
               name="amount"
               type="number"
               step="0.01"
@@ -135,7 +135,7 @@ export default async function MarketCostsPage({
             <label className="block text-xs font-medium text-brand-brown-light">
               Date
             </label>
-            <input
+            <input suppressHydrationWarning
               name="date"
               type="date"
               defaultValue={toDateInputValue(new Date())}
@@ -158,7 +158,7 @@ export default async function MarketCostsPage({
           <label className="block text-xs font-medium text-brand-brown-light">
             From
           </label>
-          <input
+          <input suppressHydrationWarning
             name="from"
             type="date"
             defaultValue={utcDateKey(fromDate)}
@@ -169,7 +169,7 @@ export default async function MarketCostsPage({
           <label className="block text-xs font-medium text-brand-brown-light">
             To
           </label>
-          <input
+          <input suppressHydrationWarning
             name="to"
             type="date"
             defaultValue={utcDateKey(toDate)}

@@ -96,7 +96,7 @@ export function ExpensesTable({
       <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
         <tr>
           <th className="px-4 py-3">
-            <input
+            <input suppressHydrationWarning
               type="checkbox"
               checked={allIds.length > 0 && selected.size === allIds.length}
               onChange={toggleAll}
@@ -129,7 +129,7 @@ export function ExpensesTable({
           {group.items.map((expense) => (
             <tr key={expense.id}>
               <td className="px-4 py-3">
-                <input
+                <input suppressHydrationWarning
                   type="checkbox"
                   checked={selected.has(expense.id)}
                   onChange={() => toggleOne(expense.id)}

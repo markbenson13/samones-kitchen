@@ -69,7 +69,7 @@ export function FoodItemForm({
       action={handleAction}
       className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
     >
-      <input type="hidden" name="id" value={fields.id} />
+      <input suppressHydrationWarning type="hidden" name="id" value={fields.id} />
 
       <div className="lg:col-span-2">
         <label className="block text-xs font-medium text-brand-brown-light">
@@ -106,7 +106,7 @@ export function FoodItemForm({
         <label className="block text-xs font-medium text-brand-brown-light">
           Cost price
         </label>
-        <input
+        <input suppressHydrationWarning
           name="costPrice"
           type="number"
           step="0.01"
@@ -122,7 +122,7 @@ export function FoodItemForm({
         <label className="block text-xs font-medium text-brand-brown-light">
           Selling price
         </label>
-        <input
+        <input suppressHydrationWarning
           name="sellingPrice"
           type="number"
           step="0.01"

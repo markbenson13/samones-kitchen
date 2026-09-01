@@ -98,7 +98,7 @@ export function FoodItemsTable({
         <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
         <tr>
           <th className="px-4 py-3">
-            <input
+            <input suppressHydrationWarning
               type="checkbox"
               checked={rows.length > 0 && selected.size === rows.length}
               onChange={toggleAll}
@@ -143,7 +143,7 @@ export function FoodItemsTable({
         {rows.map((item) => (
           <tr key={item.id}>
             <td className="px-4 py-3">
-              <input
+              <input suppressHydrationWarning
                 type="checkbox"
                 checked={selected.has(item.id)}
                 onChange={() => toggleOne(item.id)}

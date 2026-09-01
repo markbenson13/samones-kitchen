@@ -99,7 +99,7 @@ export function MarketCostsTable({
       <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
         <tr>
           <th className="px-4 py-3">
-            <input
+            <input suppressHydrationWarning
               type="checkbox"
               checked={allIds.length > 0 && selected.size === allIds.length}
               onChange={toggleAll}
@@ -138,7 +138,7 @@ export function MarketCostsTable({
           {group.items.map((cost) => (
             <tr key={cost.id}>
               <td className="px-4 py-3">
-                <input
+                <input suppressHydrationWarning
                   type="checkbox"
                   checked={selected.has(cost.id)}
                   onChange={() => toggleOne(cost.id)}

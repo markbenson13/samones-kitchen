@@ -37,7 +37,7 @@ export function OrdersDayPanel({
         <label className="text-sm font-medium text-brand-brown-light">
           Managing day
         </label>
-        <input
+        <input suppressHydrationWarning
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}

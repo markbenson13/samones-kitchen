@@ -105,7 +105,7 @@ export function OrderForm({
       }}
       className="mt-4 space-y-4"
     >
-      <input type="hidden" name="date" value={date} />
+      <input suppressHydrationWarning type="hidden" name="date" value={date} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="lg:col-span-2">
           <label className="block text-xs font-medium text-brand-brown-light">
@@ -182,7 +182,7 @@ export function OrderForm({
               className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
             >
               <span className="flex items-center gap-2">
-                <input
+                <input suppressHydrationWarning
                   type="checkbox"
                   name="foodItemIds"
                   value={item.id}
@@ -192,7 +192,7 @@ export function OrderForm({
                 <span className="text-brand-brown">{item.name}</span>
               </span>
               <span className="flex items-center gap-2">
-                <input
+                <input suppressHydrationWarning
                   type="number"
                   name={`quantity_${item.id}`}
                   min="1"
@@ -211,7 +211,7 @@ export function OrderForm({
                   className="flex items-center gap-1 text-[11px] text-brand-brown-light"
                   title="Check to sell this item at a discounted price"
                 >
-                  <input
+                  <input suppressHydrationWarning
                     type="checkbox"
                     name={`sale_${item.id}`}
                     checked={!!saleChecked[item.id]}
@@ -222,7 +222,7 @@ export function OrderForm({
                   />
                   Sale
                 </label>
-                <input
+                <input suppressHydrationWarning
                   type="number"
                   name={`price_${item.id}`}
                   min="0"

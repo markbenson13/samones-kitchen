@@ -125,7 +125,7 @@ export function SalesTable({
       <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
         <tr>
           <th className="px-4 py-3">
-            <input
+            <input suppressHydrationWarning
               type="checkbox"
               checked={allIds.length > 0 && selected.size === allIds.length}
               onChange={toggleAll}
@@ -183,7 +183,7 @@ export function SalesTable({
             return (
               <tr key={sale.id}>
                 <td className="px-4 py-3">
-                  <input
+                  <input suppressHydrationWarning
                     type="checkbox"
                     checked={selected.has(sale.id)}
                     onChange={() => toggleOne(sale.id)}

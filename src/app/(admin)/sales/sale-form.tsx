@@ -133,7 +133,7 @@ export function SaleForm({
       }}
       className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6"
     >
-      <input type="hidden" name="id" value={id} />
+      <input suppressHydrationWarning type="hidden" name="id" value={id} />
       <div className="lg:col-span-2">
         <label className="block text-xs font-medium text-brand-brown-light">
           Food item
@@ -162,7 +162,7 @@ export function SaleForm({
         <label className="block text-xs font-medium text-brand-brown-light">
           Tubs made
         </label>
-        <input
+        <input suppressHydrationWarning
           name="quantityMade"
           type="number"
           step="1"
@@ -178,7 +178,7 @@ export function SaleForm({
         <label className="block text-xs font-medium text-brand-brown-light">
           Sold
         </label>
-        <input
+        <input suppressHydrationWarning
           name="quantity"
           type="number"
           step="1"
@@ -194,7 +194,7 @@ export function SaleForm({
         <label className="flex items-center justify-between text-xs font-medium text-brand-brown-light">
           Unit price
           <span className="flex items-center gap-1 font-normal">
-            <input
+            <input suppressHydrationWarning
               type="checkbox"
               name="isSale"
               checked={isSale}
@@ -204,7 +204,7 @@ export function SaleForm({
             Sale
           </span>
         </label>
-        <input
+        <input suppressHydrationWarning
           name="unitPrice"
           type="number"
           step="0.01"
@@ -222,7 +222,7 @@ export function SaleForm({
         <label className="block text-xs font-medium text-brand-brown-light">
           Date
         </label>
-        <input
+        <input suppressHydrationWarning
           name="date"
           type="date"
           value={date}
