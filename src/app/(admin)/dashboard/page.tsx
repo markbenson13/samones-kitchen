@@ -55,8 +55,8 @@ export default async function DashboardPage({
     expenses,
     topItemGroups,
     rangeOrders,
-    unpaidRows,
-    pendingRows,
+    [unpaidAgg],
+    [pendingAgg],
     selectedDaySales,
     selectedDayCosts,
   ] = await Promise.all([
@@ -78,10 +78,11 @@ export default async function DashboardPage({
       _sum: { totalAmount: true, quantity: true },
     }),
     // For "Top customers" below — fetched raw (not Prisma groupBy) so
-    // batches (orderGroupId ?? id) can be deduped in JS the same way
-    // unpaidCount/pendingCount already do; groupBy alone would either
-    // collapse every legacy orderGroupId:null row into one group or count
-    // each line item as its own "order".
+    // batches (orderGroupId ?? id) can be deduped in JS; groupBy alone would
+    // either collapse every legacy orderGroupId:null row into one group or
+    // count each line item as its own "order". Unpaid/pending below don't
+    // need this same row-level fetch — COALESCE(...) in SQL dedupes batches
+    // directly, so only a count/sum comes back, not every matching row.
     prisma.order.findMany({
       where: dateRangeWhere,
       select: {
@@ -94,18 +95,25 @@ export default async function DashboardPage({
     }),
     // All-time, deliberately not date-scoped — "unpaid" is a current-state
     // flag, not a period metric. An order from weeks ago is still owed
-    // today regardless of what range is selected above.
-    prisma.order.findMany({
-      where: { paymentStatus: "Unpaid" },
-      select: { id: true, orderGroupId: true, quantity: true, unitPrice: true },
-    }),
+    // today regardless of what range is selected above. A batch is
+    // orderGroupId ?? id (older rows have no orderGroupId, so are their own
+    // singleton batch) — COALESCE handles that the same way the JS
+    // `orderGroupId ?? id` dedup elsewhere in this file does, so this stays
+    // a single aggregate query instead of fetching every unpaid row ever.
+    prisma.$queryRaw<{ count: number; total: string | null }[]>`
+      SELECT COUNT(DISTINCT COALESCE("orderGroupId", id))::int AS count,
+             COALESCE(SUM(quantity * "unitPrice"), 0) AS total
+      FROM "Order"
+      WHERE "paymentStatus" = ${"Unpaid"}
+    `,
     // "Not yet delivered" — covers both Pending and the in-between "For
     // dispatch" status, so an order doesn't just disappear from this count
     // the moment it's sent out but hasn't arrived yet.
-    prisma.order.findMany({
-      where: { deliveryStatus: { not: "Delivered" } },
-      select: { id: true, orderGroupId: true },
-    }),
+    prisma.$queryRaw<{ count: number }[]>`
+      SELECT COUNT(DISTINCT COALESCE("orderGroupId", id))::int AS count
+      FROM "Order"
+      WHERE "deliveryStatus" != ${"Delivered"}
+    `,
     // Scoped to selectedDay (its own filter, defaulting to today), not the
     // from/to range above — deliberately independent, same reasoning as
     // unpaid/pending: this is a single day's snapshot, not a period metric.
@@ -136,18 +144,9 @@ export default async function DashboardPage({
   // figure. That one lives on the Expenses page as "Available income".
   const netIncome = totalSales - totalCosts;
 
-  // Batches (orderGroupId ?? id) are deduped in JS, not via Prisma groupBy —
-  // groupBy would collapse every legacy orderGroupId:null row into one
-  // group, undercounting. The ₱ total sums every matching row (a money
-  // total, not a batch metric), so it isn't deduped.
-  const unpaidBatchKeys = new Set(unpaidRows.map((r) => r.orderGroupId ?? r.id));
-  const unpaidCount = unpaidBatchKeys.size;
-  const unpaidTotal = unpaidRows.reduce(
-    (sum, r) => sum + r.quantity * toNumber(r.unitPrice.toString()),
-    0
-  );
-  const pendingCount = new Set(pendingRows.map((r) => r.orderGroupId ?? r.id))
-    .size;
+  const unpaidCount = unpaidAgg.count;
+  const unpaidTotal = toNumber(unpaidAgg.total ?? "0");
+  const pendingCount = pendingAgg.count;
 
   const selectedDaySalesTotal = toNumber(
     selectedDaySales._sum.totalAmount?.toString() ?? "0"

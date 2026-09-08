@@ -1,17 +1,31 @@
 ## SAMone's Kitchen — Admin
 
-An admin-only web app for tracking an ulam (viand) selling business:
+An admin web app for running a home-cooked Filipino food (ulam) selling and catering business:
 
-- Log **market costs** (ingredients, supplies, other expenses)
-- Set **food item pricing** (cost price and selling price per dish)
-- Record **sales** and see **net income** (sales − costs) on a dashboard
+- **Orders** — take customer pre-orders for a "Managing day," track payment/delivery status (Pending → For
+  dispatch → Delivered) and mode of payment, edit or add items to an existing order
+- **Sales** — record what was actually made and sold per food item per day, with a "Sale" (discounted) price
+  option; a regular order automatically carries its quantity/revenue into Sales so nothing has to be logged twice
+- **Market Costs** — log a market trip's ingredients/supplies, one or several items at once
+- **Expenses** — log other business costs (gas, packaging, delivery, etc.)
+- **Food Items** — set cost price / selling price per dish, active/inactive status
+- **Dashboard** — totals and a daily chart for a date range, an independent "Right now" day snapshot (today's
+  sales, net income, unpaid orders, pending deliveries), and Top 10 food items / Top customers
+- **Users** — multi-user access with an approval gate (see Authentication below)
+
+The app auto-refreshes open pages periodically so data stays current across multiple devices open at once, and
+surfaces action results (created/updated/deleted, or a validation error) as an auto-dismissing toast.
 
 ### Stack
 
-- [Next.js](https://nextjs.org) (App Router, TypeScript, Tailwind CSS)
-- [Prisma](https://www.prisma.io) + Postgres
-- [Auth.js (NextAuth v5)](https://authjs.dev) — single admin login via credentials
+- [Next.js](https://nextjs.org) (App Router, TypeScript, Tailwind CSS) — pinned to a specific 16.x build; see
+  [AGENTS.md](AGENTS.md) before assuming any Next.js API behaves like an older/standard release
+- [Prisma](https://www.prisma.io) + Postgres (`@prisma/adapter-pg`, no migrations — schema changes go through
+  `npm run db:push`)
+- [Auth.js (NextAuth v5)](https://authjs.dev) — credentials login plus optional Google OAuth
 - [Recharts](https://recharts.org) — dashboard chart
+- [Vitest](https://vitest.dev) — unit tests for pure helpers (`src/lib`); everything else is verified by hand
+  (or with ad-hoc Playwright scripts) against a throwaway user, since there's no e2e suite
 
 ### 1. Set up a Postgres database
 
@@ -26,23 +40,20 @@ Copy `.env.example` to `.env` and fill in:
 
 - `DATABASE_URL` / `DIRECT_URL` — from your Postgres provider
 - `AUTH_SECRET` — generate with `npx auth secret`
-- `ADMIN_EMAIL` — the email you'll log in with
-- `ADMIN_PASSWORD_HASH` — generate with:
-  ```bash
-  npm run hash-password -- yourPassword
-  ```
-  Paste the printed value into `.env` exactly as-is (it comes pre-escaped). Next.js expands
-  unescaped `$name` sequences in `.env` values, which corrupts a raw bcrypt hash — the script
-  escapes the `$` signs for you so this doesn't bite you.
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (optional) — enables "Sign in with Google" on the login page; see
+  the comments in `.env.example` for the redirect URI and approval-gate behavior
 
-There is only ever one admin account, defined entirely by these two env vars — no signup flow, no users table.
-
-### 3. Install dependencies and push the schema
+### 3. Install dependencies, push the schema, and create your first user
 
 ```bash
 npm install
 npm run db:push
+npm run create-user -- you@example.com yourPassword "Your Name"
 ```
+
+Users are stored in the `User` table, not env vars — there's no fixed single admin account. The first user you
+create can sign in immediately; anyone who signs in afterwards (via `create-user` again, or Google) needs an
+existing user to approve them from the Users page before they can access the app.
 
 ### 4. Run locally
 
@@ -50,16 +61,26 @@ npm run db:push
 npm run dev
 ```
 
-Visit `http://localhost:3000`, sign in with `ADMIN_EMAIL` / the password you hashed.
+Visit `http://localhost:3000` and sign in with the email/password you created above.
+
+### Running tests
+
+```bash
+npm test
+```
+
+Runs the Vitest unit suite (pure helpers in `src/lib`). Everything else — Server Actions, pages, the auth flow —
+is verified manually against a real dev database; see `scripts/create-user.mjs` for spinning up a throwaway
+account to test with.
 
 ### Deploying to Vercel
 
 1. Push this repo to GitHub.
 2. Import it into [Vercel](https://vercel.com/new).
-3. Add the same environment variables from your `.env` (`DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`,
-   `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH`) in the Vercel project settings.
+3. Add the same environment variables from your `.env` (`DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, and the
+   `GOOGLE_CLIENT_*` pair if you're using Google sign-in) in the Vercel project settings.
 4. Deploy. The `build` script runs `prisma generate` automatically; run `npm run db:push` locally (pointed at the
-   same production database) once to create the tables before first use.
+   same production database) once to create the tables, then `npm run create-user` for your first account.
 
 ### Notes
 

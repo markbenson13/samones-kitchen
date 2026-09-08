@@ -36,3 +36,14 @@ export function formatRangeDate(date: Date): string {
     timeZone: "UTC",
   });
 }
+
+// Parses a <input type="date"> value (or blank, for a fresh form) into a
+// Date, throwing instead of silently producing an Invalid Date if the string
+// doesn't parse — a malformed value fails the action clearly (as a toast)
+// rather than writing an unparseable date into a row.
+export function parseDateInput(dateStr: string): Date {
+  if (!dateStr) return new Date();
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) throw new Error("Invalid date");
+  return date;
+}

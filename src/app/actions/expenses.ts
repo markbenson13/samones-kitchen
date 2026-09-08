@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { parseDateInput } from "@/lib/date";
 import { revalidatePath } from "next/cache";
 
 async function requireAdmin() {
@@ -20,7 +21,7 @@ export async function upsertExpense(formData: FormData) {
   if (!description) throw new Error("Description is required");
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("Invalid amount");
 
-  const date = dateStr ? new Date(dateStr) : new Date();
+  const date = parseDateInput(dateStr);
   const data = { description, amount, date };
 
   if (id) {

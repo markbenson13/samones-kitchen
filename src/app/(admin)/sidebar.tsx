@@ -78,6 +78,7 @@ export function Sidebar({
           type="button"
           onClick={() => setManualOverride(!collapsed)}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-brand-brown-light hover:bg-brand-cream hover:text-brand-red"
         >
           {collapsed ? (

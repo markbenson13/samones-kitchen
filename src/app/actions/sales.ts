@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { parseDateInput } from "@/lib/date";
 import { revalidatePath } from "next/cache";
 
 async function requireAdmin() {
@@ -88,7 +89,7 @@ export async function upsertSale(formData: FormData) {
     unitPrice = foodItem.sellingPrice;
   }
 
-  const date = dateStr ? new Date(dateStr) : new Date();
+  const date = parseDateInput(dateStr);
   const totalAmount = Number(unitPrice) * quantity;
 
   if (id) {

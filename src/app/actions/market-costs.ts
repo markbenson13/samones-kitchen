@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { parseDateInput } from "@/lib/date";
 import { revalidatePath } from "next/cache";
 
 async function requireAdmin() {
@@ -21,7 +22,7 @@ export async function upsertMarketCost(formData: FormData) {
   if (!description) throw new Error("Description is required");
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("Invalid amount");
 
-  const date = dateStr ? new Date(dateStr) : new Date();
+  const date = parseDateInput(dateStr);
   const data = { description, quantity, amount, date };
 
   if (id) {
@@ -41,7 +42,7 @@ export async function createMarketCosts(formData: FormData) {
   await requireAdmin();
 
   const dateStr = String(formData.get("date") ?? "");
-  const date = dateStr ? new Date(dateStr) : new Date();
+  const date = parseDateInput(dateStr);
   const rowCount = Number(formData.get("rowCount") ?? "0");
 
   const items: { description: string; quantity: string | null; amount: number }[] =

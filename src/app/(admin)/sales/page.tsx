@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/money";
-import { toDateInputValue, utcDateKey, formatGroupDate } from "@/lib/date";
+import {
+  toDateInputValue,
+  utcDateKey,
+  formatGroupDate,
+  formatRangeDate,
+} from "@/lib/date";
 import { getDailyMenuByDate } from "@/lib/daily-menu";
 import { upsertSale, deleteSale, deleteSales } from "@/app/actions/sales";
 import { SalesSection } from "./sales-section";
@@ -9,23 +14,55 @@ import { Pagination } from "@/components/pagination";
 import { SubmitButton } from "@/components/submit-button";
 import { FilterForm } from "@/components/filter-form";
 
+const DEFAULT_RANGE_DAYS = 30;
 const PAGE_SIZE = 25;
 
 export default async function SalesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; date?: string; foodItemId?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    from?: string;
+    to?: string;
+    search?: string;
+    foodItemId?: string;
+  }>;
 }) {
   const {
     page: pageParam,
-    date: dateParam,
+    from: fromParam,
+    to: toParam,
+    search: searchParam,
     foodItemId: foodItemIdParam,
   } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
-  const dateFilter = dateParam || undefined;
-  const foodItemIdFilter = foodItemIdParam || undefined;
+  const search = searchParam?.trim() || undefined;
+  // The dropdown's own "All" option submits the literal string "All" (its
+  // defaultValue) whenever the form is applied without changing it — that
+  // must not become a real `{ foodItemId: "All" }` filter, or it silently
+  // zeroes out every result whenever another field (date range, search) is
+  // the only thing actually being filtered on.
+  const foodItemIdFilter =
+    foodItemIdParam && foodItemIdParam !== "All" ? foodItemIdParam : undefined;
+
+  // Local calendar date (matching toDateInputValue's own convention below),
+  // not a bare UTC-midnight snap — those two disagree for up to a day
+  // depending on server timezone, same reasoning as Dashboard/Market Costs.
+  const todayDate = new Date(toDateInputValue(new Date()));
+  const defaultFrom = new Date(todayDate);
+  defaultFrom.setUTCDate(defaultFrom.getUTCDate() - (DEFAULT_RANGE_DAYS - 1));
+
+  const fromDate = fromParam ? new Date(fromParam) : defaultFrom;
+  const toDate = toParam ? new Date(toParam) : todayDate;
+  // `lt` the day after `to` so the whole `to` day (stored at UTC midnight) is included.
+  const toDateExclusive = new Date(toDate);
+  toDateExclusive.setUTCDate(toDateExclusive.getUTCDate() + 1);
+
   const where = {
-    ...(dateFilter ? { date: new Date(dateFilter) } : {}),
+    date: { gte: fromDate, lt: toDateExclusive },
+    ...(search
+      ? { foodItem: { name: { contains: search, mode: "insensitive" as const } } }
+      : {}),
     ...(foodItemIdFilter ? { foodItemId: foodItemIdFilter } : {}),
   };
 
@@ -100,7 +137,6 @@ export default async function SalesPage({
     }
   }
 
-  const today = toDateInputValue(new Date());
   const hasNegativeLeftover = groups.some((group) =>
     group.items.some((sale) => computeLeftoverAndTotal(sale).leftover < 0)
   );
@@ -126,12 +162,35 @@ export default async function SalesPage({
       <FilterForm suppressHydrationWarning className="flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-xs font-medium text-brand-brown-light">
-            Date
+            Search
           </label>
           <input suppressHydrationWarning
-            name="date"
+            name="search"
+            type="text"
+            placeholder="Food item"
+            defaultValue={search ?? ""}
+            className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-brand-brown-light">
+            From
+          </label>
+          <input suppressHydrationWarning
+            name="from"
             type="date"
-            defaultValue={dateFilter ?? ""}
+            defaultValue={utcDateKey(fromDate)}
+            className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-brand-brown-light">
+            To
+          </label>
+          <input suppressHydrationWarning
+            name="to"
+            type="date"
+            defaultValue={utcDateKey(toDate)}
             className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
           />
         </div>
@@ -165,7 +224,7 @@ export default async function SalesPage({
           Reset
         </Link>
         <Link
-          href={`/sales?date=${today}`}
+          href={`/sales?from=${toDateInputValue(new Date())}&to=${toDateInputValue(new Date())}`}
           className="rounded-md border border-brand-tan px-4 py-2 text-sm font-medium text-brand-brown hover:bg-brand-cream"
         >
           Today
@@ -181,7 +240,7 @@ export default async function SalesPage({
           name: item.name,
           sellingPrice: item.sellingPrice.toString(),
         }))}
-        defaultDate={today}
+        defaultDate={toDateInputValue(new Date())}
         groups={groups.map((group) => ({
           ...group,
           items: group.items.map((sale) => {
@@ -202,20 +261,24 @@ export default async function SalesPage({
         }))}
         deleteAction={deleteSale}
         bulkDeleteAction={deleteSales}
-        totalLabel={`Total (page ${page} of ${totalPages})`}
+        totalLabel={`Total (${formatRangeDate(fromDate)} – ${formatRangeDate(toDate)})`}
         total={total}
         emptyMessage={
-          dateFilter || foodItemIdFilter
+          search || foodItemIdFilter
             ? "No sales match this filter."
-            : "No sales recorded yet."
+            : "No sales recorded in this period."
         }
         pagination={
           <Pagination
             page={page}
             totalPages={totalPages}
             buildHref={(p) => {
-              const params = new URLSearchParams({ page: String(p) });
-              if (dateFilter) params.set("date", dateFilter);
+              const params = new URLSearchParams({
+                from: utcDateKey(fromDate),
+                to: utcDateKey(toDate),
+                page: String(p),
+              });
+              if (search) params.set("search", search);
               if (foodItemIdFilter) params.set("foodItemId", foodItemIdFilter);
               return `/sales?${params.toString()}`;
             }}

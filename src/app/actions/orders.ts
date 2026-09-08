@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { parseDateInput } from "@/lib/date";
 import { revalidatePath } from "next/cache";
 
 async function requireAdmin() {
@@ -258,7 +259,7 @@ export async function createOrder(formData: FormData) {
     throw new Error("One of the selected food items was not found");
   const priceById = new Map(foodItems.map((f) => [f.id, f.sellingPrice]));
 
-  const date = dateStr ? new Date(dateStr) : new Date();
+  const date = parseDateInput(dateStr);
   const orderGroupId = randomUUID();
 
   await prisma.order.createMany({

@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { parseDateInput } from "@/lib/date";
 import { revalidatePath } from "next/cache";
 
 async function requireAdmin() {
@@ -23,7 +24,7 @@ export async function addToDailyMenu(formData: FormData) {
 
   if (!name) throw new Error("Dish name is required");
 
-  const date = dateStr ? new Date(dateStr) : new Date();
+  const date = parseDateInput(dateStr);
 
   // Reuse an existing food item by name (case-insensitive), or quick-create
   // one with placeholder pricing — the point is adding to the menu shouldn't
