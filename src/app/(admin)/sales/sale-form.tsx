@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { utcDateKey } from "@/lib/date";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { useToast, withToast } from "@/components/toast";
 
 type FoodItemOption = { id: string; name: string; sellingPrice: string };
 
@@ -50,19 +51,15 @@ export function SaleForm({
   // Price is only editable once "Sale" is checked — otherwise it's locked to
   // the item's normal selling price.
   const [isSale, setIsSale] = useState(false);
-  // Brief confirmation after a successful submit — the form otherwise gives
-  // no visible sign it worked, which made it easy to think a click hadn't
-  // registered and submit the same sale again.
-  const [justSaved, setJustSaved] = useState(false);
+  const toast = useToast();
 
-  useEffect(() => {
-    if (!justSaved) return;
-    const timer = setTimeout(() => setJustSaved(false), 3000);
-    return () => clearTimeout(timer);
-  }, [justSaved]);
-
-  // Load the selected row into the form when an edit is requested.
-  const [syncedEditingSale, setSyncedEditingSale] = useState(editingSale);
+  // Load the selected row into the form when an edit is requested. Seeded
+  // with null (not `editingSale`) so this still syncs correctly the first
+  // time this component renders — it can mount directly into an
+  // already-in-progress edit now that its parent section is collapsible and
+  // only mounts this form once expanded, rather than always being mounted.
+  const [syncedEditingSale, setSyncedEditingSale] =
+    useState<EditingSale | null>(null);
   if (editingSale && editingSale !== syncedEditingSale) {
     setSyncedEditingSale(editingSale);
     setId(editingSale.id);
@@ -127,13 +124,18 @@ export function SaleForm({
   return (
     <form suppressHydrationWarning
       action={async (formData) => {
-        await action(formData);
-        resetForm();
-        setJustSaved(true);
+        const isEdit = Boolean(id);
+        const itemName = options.find((item) => item.id === foodItemId)?.name ?? "item";
+        const ok = await withToast(
+          toast,
+          () => action(formData),
+          isEdit ? `Sale record for "${itemName}" updated.` : `Sale recorded for "${itemName}".`
+        );
+        if (ok) resetForm();
       }}
       className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6"
     >
-      <input type="hidden" name="id" value={id} />
+      <input suppressHydrationWarning type="hidden" name="id" value={id} />
       <div className="lg:col-span-2">
         <label className="block text-xs font-medium text-brand-brown-light">
           Food item
@@ -162,7 +164,7 @@ export function SaleForm({
         <label className="block text-xs font-medium text-brand-brown-light">
           Tubs made
         </label>
-        <input
+        <input suppressHydrationWarning
           name="quantityMade"
           type="number"
           step="1"
@@ -178,7 +180,7 @@ export function SaleForm({
         <label className="block text-xs font-medium text-brand-brown-light">
           Sold
         </label>
-        <input
+        <input suppressHydrationWarning
           name="quantity"
           type="number"
           step="1"
@@ -194,7 +196,7 @@ export function SaleForm({
         <label className="flex items-center justify-between text-xs font-medium text-brand-brown-light">
           Unit price
           <span className="flex items-center gap-1 font-normal">
-            <input
+            <input suppressHydrationWarning
               type="checkbox"
               name="isSale"
               checked={isSale}
@@ -204,7 +206,7 @@ export function SaleForm({
             Sale
           </span>
         </label>
-        <input
+        <input suppressHydrationWarning
           name="unitPrice"
           type="number"
           step="0.01"
@@ -222,7 +224,7 @@ export function SaleForm({
         <label className="block text-xs font-medium text-brand-brown-light">
           Date
         </label>
-        <input
+        <input suppressHydrationWarning
           name="date"
           type="date"
           value={date}
@@ -258,9 +260,6 @@ export function SaleForm({
           >
             Cancel
           </button>
-        )}
-        {justSaved && (
-          <span className="text-sm text-emerald-700">✓ Saved</span>
         )}
       </div>
     </form>

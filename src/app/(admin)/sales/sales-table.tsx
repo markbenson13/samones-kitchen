@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import { formatMoney, toNumber } from "@/lib/money";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { BulkDeleteBar } from "@/components/bulk-delete-bar";
 import { CollapsibleGroup } from "@/components/collapsible-group";
+import { useToast, withToast } from "@/components/toast";
 import {
   SortableHeader,
   nextSortState,
@@ -87,6 +89,7 @@ export function SalesTable({
 }) {
   const [sort, setSort] = useState<SortState<SortKey>>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toast = useToast();
 
   const sortedGroups = useMemo(
     () => groups.map((group) => ({ ...group, items: sortItems(group.items, sort) })),
@@ -114,18 +117,24 @@ export function SalesTable({
   }
 
   async function handleBulkDelete() {
-    await bulkDeleteAction(Array.from(selected));
-    setSelected(new Set());
+    const ids = Array.from(selected);
+    const ok = await withToast(
+      toast,
+      () => bulkDeleteAction(ids),
+      `${ids.length} sale${ids.length === 1 ? "" : "s"} deleted.`
+    );
+    if (ok) setSelected(new Set());
   }
 
   return (
     <>
       <BulkDeleteBar count={selected.size} action={handleBulkDelete} />
+      <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
       <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
         <tr>
           <th className="px-4 py-3">
-            <input
+            <input suppressHydrationWarning
               type="checkbox"
               checked={allIds.length > 0 && selected.size === allIds.length}
               onChange={toggleAll}
@@ -181,9 +190,12 @@ export function SalesTable({
         >
           {group.items.map((sale) => {
             return (
-              <tr key={sale.id}>
+              <tr
+                key={sale.id}
+                className={sale.isSale ? "bg-brand-gold/10" : undefined}
+              >
                 <td className="px-4 py-3">
-                  <input
+                  <input suppressHydrationWarning
                     type="checkbox"
                     checked={selected.has(sale.id)}
                     onChange={() => toggleOne(sale.id)}
@@ -208,6 +220,14 @@ export function SalesTable({
                   }`}
                 >
                   {sale.leftover}
+                  {sale.leftover < 0 && (
+                    <span
+                      className="ml-1 cursor-help"
+                      title="Sold more than Tubs made — update Tubs made to fix this."
+                    >
+                      ⚠
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3">{formatMoney(sale.unitPrice)}</td>
                 <td className="px-4 py-3">{formatMoney(sale.totalAmount)}</td>
@@ -216,20 +236,33 @@ export function SalesTable({
                     <button
                       type="button"
                       onClick={() => onEdit(sale)}
-                      className="text-xs font-medium text-brand-brown hover:underline"
+                      aria-label="Edit"
+                      title="Edit"
+                      className="rounded-md p-1.5 text-brand-brown hover:bg-brand-cream"
                     >
-                      Edit
+                      <Pencil className="h-4 w-4" />
                     </button>
-                    <form suppressHydrationWarning action={deleteAction.bind(null, sale.id)}>
+                    <form
+                      suppressHydrationWarning
+                      action={async () => {
+                        await withToast(
+                          toast,
+                          () => deleteAction(sale.id),
+                          `"${sale.foodItemName}" sale record deleted.`
+                        );
+                      }}
+                    >
                       <ConfirmSubmitButton
                         spinnerClassName="h-3 w-3"
                         confirmTitle="Delete this sale?"
                         confirmMessage={`This will permanently delete the sale record for "${sale.foodItemName}". This cannot be undone.`}
                         confirmLabel="Delete"
                         danger
-                        className="text-xs font-medium text-red-600 hover:underline"
+                        aria-label="Delete"
+                        title="Delete"
+                        className="rounded-md p-1.5 text-red-600 hover:bg-red-50"
                       >
-                        Delete
+                        <Trash2 className="h-4 w-4" />
                       </ConfirmSubmitButton>
                     </form>
                   </div>
@@ -251,6 +284,7 @@ export function SalesTable({
         </tr>
       </tfoot>
       </table>
+      </div>
     </>
   );
 }

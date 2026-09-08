@@ -8,14 +8,15 @@ import {
   formatRangeDate,
 } from "@/lib/date";
 import {
-  createExpense,
+  upsertExpense,
   deleteExpense,
   deleteExpenses,
 } from "@/app/actions/expenses";
 import { SubmitButton } from "@/components/submit-button";
 import { Pagination } from "@/components/pagination";
 import { StatCard } from "@/components/stat-card";
-import { ExpensesTable } from "./expenses-table";
+import { FilterForm } from "@/components/filter-form";
+import { ExpensesSection } from "./expenses-section";
 
 const DEFAULT_RANGE_DAYS = 30;
 const PAGE_SIZE = 25;
@@ -23,13 +24,28 @@ const PAGE_SIZE = 25;
 export default async function ExpensesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; page?: string }>;
+  searchParams: Promise<{
+    from?: string;
+    to?: string;
+    page?: string;
+    search?: string;
+  }>;
 }) {
-  const { from: fromParam, to: toParam, page: pageParam } = await searchParams;
+  const {
+    from: fromParam,
+    to: toParam,
+    page: pageParam,
+    search: searchParam,
+  } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
+  const search = searchParam?.trim() || undefined;
 
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
+  // Local calendar date (matching toDateInputValue's own convention below),
+  // not a bare UTC-midnight snap — those two disagree for up to a day
+  // depending on server timezone (e.g. UTC+8 machines cross into "tomorrow"
+  // locally 8 hours before UTC does), which silently excluded today's own
+  // freshly-added rows from the default range below.
+  const today = new Date(toDateInputValue(new Date()));
   const defaultFrom = new Date(today);
   defaultFrom.setUTCDate(defaultFrom.getUTCDate() - (DEFAULT_RANGE_DAYS - 1));
 
@@ -39,7 +55,16 @@ export default async function ExpensesPage({
   const toDateExclusive = new Date(toDate);
   toDateExclusive.setUTCDate(toDateExclusive.getUTCDate() + 1);
 
-  const where = { date: { gte: fromDate, lt: toDateExclusive } };
+  // Shared by the Sales/Market costs context stat cards below, which are
+  // date-scoped only — they're not searchable, so they can't take the
+  // description filter the Expense queries below need.
+  const dateRangeWhere = { date: { gte: fromDate, lt: toDateExclusive } };
+  const where = {
+    ...dateRangeWhere,
+    ...(search
+      ? { description: { contains: search, mode: "insensitive" as const } }
+      : {}),
+  };
 
   const [expenses, totalCount, expensesAgg, salesAgg, marketCostsAgg] =
     await Promise.all([
@@ -51,8 +76,8 @@ export default async function ExpensesPage({
       }),
       prisma.expense.count({ where }),
       prisma.expense.aggregate({ where, _sum: { amount: true } }),
-      prisma.sale.aggregate({ where, _sum: { totalAmount: true } }),
-      prisma.marketCost.aggregate({ where, _sum: { amount: true } }),
+      prisma.sale.aggregate({ where: dateRangeWhere, _sum: { totalAmount: true } }),
+      prisma.marketCost.aggregate({ where: dateRangeWhere, _sum: { amount: true } }),
     ]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -111,12 +136,24 @@ export default async function ExpensesPage({
         />
       </div>
 
-      <form suppressHydrationWarning className="flex flex-wrap items-end gap-3">
+      <FilterForm suppressHydrationWarning className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-xs font-medium text-brand-brown-light">
+            Search
+          </label>
+          <input suppressHydrationWarning
+            name="search"
+            type="text"
+            placeholder="Description"
+            defaultValue={search ?? ""}
+            className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
+          />
+        </div>
         <div>
           <label className="block text-xs font-medium text-brand-brown-light">
             From
           </label>
-          <input
+          <input suppressHydrationWarning
             name="from"
             type="date"
             defaultValue={utcDateKey(fromDate)}
@@ -127,7 +164,7 @@ export default async function ExpensesPage({
           <label className="block text-xs font-medium text-brand-brown-light">
             To
           </label>
-          <input
+          <input suppressHydrationWarning
             name="to"
             type="date"
             defaultValue={utcDateKey(toDate)}
@@ -146,90 +183,45 @@ export default async function ExpensesPage({
         >
           Reset
         </Link>
-      </form>
+      </FilterForm>
 
-      <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-medium text-brand-brown">Add expense</h2>
-        <form suppressHydrationWarning
-          action={createExpense}
-          className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
-        >
-          <div className="lg:col-span-2">
-            <label className="block text-xs font-medium text-brand-brown-light">
-              Description
-            </label>
-            <input
-              name="description"
-              type="text"
-              required
-              placeholder="e.g. Gas, packaging, delivery fare"
-              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-brand-brown-light">
-              Amount
-            </label>
-            <input
-              name="amount"
-              type="number"
-              step="0.01"
-              min="0"
-              required
-              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-brand-brown-light">
-              Date
-            </label>
-            <input
-              name="date"
-              type="date"
-              defaultValue={toDateInputValue(new Date())}
-              className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="flex items-end lg:col-span-4">
-            <SubmitButton
-              pendingText="Adding…"
-              className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
-            >
-              Add expense
-            </SubmitButton>
-          </div>
-        </form>
-      </section>
-
-      <section className="overflow-hidden rounded-xl border border-brand-tan bg-white shadow-sm">
-        {groups.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-brand-brown-light">
-            No expenses logged in this period.
-          </p>
-        ) : (
-          <ExpensesTable
-            groups={groups.map((group) => ({
-              ...group,
-              items: group.items.map((expense) => ({
-                id: expense.id,
-                description: expense.description,
-                amount: expense.amount.toString(),
-              })),
-            }))}
-            deleteAction={deleteExpense}
-            bulkDeleteAction={deleteExpenses}
-            totalLabel={`Total (${formatRangeDate(fromDate)} – ${formatRangeDate(toDate)})`}
-            total={totalExpenses}
+      <ExpensesSection
+        action={upsertExpense}
+        defaultDate={toDateInputValue(new Date())}
+        groups={groups.map((group) => ({
+          ...group,
+          items: group.items.map((expense) => ({
+            id: expense.id,
+            description: expense.description,
+            amount: expense.amount.toString(),
+            date: utcDateKey(expense.date),
+          })),
+        }))}
+        deleteAction={deleteExpense}
+        bulkDeleteAction={deleteExpenses}
+        totalLabel={`Total (${formatRangeDate(fromDate)} – ${formatRangeDate(toDate)})`}
+        total={totalExpenses}
+        emptyMessage={
+          search
+            ? "No expenses match this search."
+            : "No expenses logged in this period."
+        }
+        pagination={
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            buildHref={(p) => {
+              const params = new URLSearchParams({
+                from: utcDateKey(fromDate),
+                to: utcDateKey(toDate),
+                page: String(p),
+              });
+              if (search) params.set("search", search);
+              return `/expenses?${params.toString()}`;
+            }}
           />
-        )}
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          buildHref={(p) =>
-            `/expenses?from=${utcDateKey(fromDate)}&to=${utcDateKey(toDate)}&page=${p}`
-          }
-        />
-      </section>
+        }
+      />
     </div>
   );
 }

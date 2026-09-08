@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { LoadingOverlayProvider } from "@/components/loading-overlay";
+import { NavProgress } from "@/components/nav-progress";
+import { ToastProvider } from "@/components/toast";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,7 +30,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         className="h-full flex flex-col overflow-hidden"
         suppressHydrationWarning
       >
-        <LoadingOverlayProvider>{children}</LoadingOverlayProvider>
+        <ToastProvider>
+          <LoadingOverlayProvider>
+            <NavProgress />
+            {children}
+          </LoadingOverlayProvider>
+        </ToastProvider>
       </body>
     </html>
   );

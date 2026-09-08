@@ -1,7 +1,12 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+
+// .env is the production fallback; .env.development overrides it so this
+// defaults to the dev database, not production.
+loadEnv({ quiet: true });
+loadEnv({ path: ".env.development", override: true, quiet: true });
 
 const [email, password, name] = process.argv.slice(2);
 

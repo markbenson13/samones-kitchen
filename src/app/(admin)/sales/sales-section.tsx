@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { CollapsibleSection } from "@/components/collapsible-section";
 import { SaleForm, type EditingSale } from "./sale-form";
 import { SalesTable } from "./sales-table";
 
@@ -32,6 +33,7 @@ export function SalesSection({
   bulkDeleteAction,
   totalLabel,
   total,
+  emptyMessage = "No sales recorded yet.",
   pagination,
 }: {
   action: (formData: FormData) => void | Promise<void>;
@@ -44,23 +46,36 @@ export function SalesSection({
   bulkDeleteAction: (ids: string[]) => void | Promise<void>;
   totalLabel: string;
   total: number;
+  emptyMessage?: string;
   pagination?: ReactNode;
 }) {
   const [editingSale, setEditingSale] = useState<EditingSale | null>(null);
+  // Collapsed by default (most Sales rows now auto-populate from Orders, so
+  // this form is mostly used for occasional corrections) — but forced open
+  // the moment an edit is requested, and collapsing it while editing cancels
+  // that edit rather than just hiding it.
+  const [formOpen, setFormOpen] = useState(false);
+
+  function handleOpenChange(open: boolean) {
+    setFormOpen(open);
+    if (!open) setEditingSale(null);
+  }
 
   return (
     <>
-      <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-medium text-brand-brown">
-          {editingSale ? "Edit sale" : "Record sale"}
-        </h2>
+      <CollapsibleSection
+        title={editingSale ? "Edit sale" : "Record sale"}
+        defaultOpen={false}
+        open={editingSale !== null || formOpen}
+        onOpenChange={handleOpenChange}
+      >
         {allFoodItems.length === 0 ? (
-          <p className="mt-4 text-sm text-brand-brown-light">
+          <p className="text-sm text-brand-brown-light">
             Add an active food item first before recording a sale.
           </p>
         ) : (
           <>
-            <p className="mt-1 text-xs text-brand-brown-light">
+            <p className="text-xs text-brand-brown-light">
               Check &quot;Sale&quot; and lower the unit price to record
               leftover stock sold off at a discount — it&apos;s fine to add
               a second, sale-priced entry for an item already recorded
@@ -73,16 +88,16 @@ export function SalesSection({
               defaultDate={defaultDate}
               leftoverByKey={leftoverByKey}
               editingSale={editingSale}
-              onCancelEdit={() => setEditingSale(null)}
+              onCancelEdit={() => handleOpenChange(false)}
             />
           </>
         )}
-      </section>
+      </CollapsibleSection>
 
       <section className="overflow-hidden rounded-xl border border-brand-tan bg-white shadow-sm">
         {groups.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-brand-brown-light">
-            No sales recorded yet.
+            {emptyMessage}
           </p>
         ) : (
           <SalesTable
@@ -91,7 +106,7 @@ export function SalesSection({
             bulkDeleteAction={bulkDeleteAction}
             totalLabel={totalLabel}
             total={total}
-            onEdit={(sale) =>
+            onEdit={(sale) => {
               setEditingSale({
                 id: sale.id,
                 foodItemId: sale.foodItemId,
@@ -100,8 +115,9 @@ export function SalesSection({
                 unitPrice: sale.unitPrice,
                 isSale: sale.isSale,
                 date: sale.date,
-              })
-            }
+              });
+              setFormOpen(true);
+            }}
           />
         )}
         {pagination}

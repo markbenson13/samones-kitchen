@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import { formatMoney, toNumber } from "@/lib/money";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { BulkDeleteBar } from "@/components/bulk-delete-bar";
 import { CollapsibleGroup } from "@/components/collapsible-group";
+import { useToast, withToast } from "@/components/toast";
 import {
   SortableHeader,
   nextSortState,
@@ -17,6 +19,7 @@ type CostRow = {
   description: string;
   quantity: string | null;
   amount: string;
+  date: string;
 };
 
 type Group = {
@@ -50,17 +53,20 @@ export function MarketCostsTable({
   groups,
   deleteAction,
   bulkDeleteAction,
+  onEdit,
   totalLabel,
   total,
 }: {
   groups: Group[];
   deleteAction: (id: string) => void | Promise<void>;
   bulkDeleteAction: (ids: string[]) => void | Promise<void>;
+  onEdit: (cost: CostRow) => void;
   totalLabel: string;
   total: number;
 }) {
   const [sort, setSort] = useState<SortState<SortKey>>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toast = useToast();
 
   const sortedGroups = useMemo(
     () => groups.map((group) => ({ ...group, items: sortItems(group.items, sort) })),
@@ -88,18 +94,24 @@ export function MarketCostsTable({
   }
 
   async function handleBulkDelete() {
-    await bulkDeleteAction(Array.from(selected));
-    setSelected(new Set());
+    const ids = Array.from(selected);
+    const ok = await withToast(
+      toast,
+      () => bulkDeleteAction(ids),
+      `${ids.length} market cost${ids.length === 1 ? "" : "s"} deleted.`
+    );
+    if (ok) setSelected(new Set());
   }
 
   return (
     <>
       <BulkDeleteBar count={selected.size} action={handleBulkDelete} />
+      <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
       <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
         <tr>
           <th className="px-4 py-3">
-            <input
+            <input suppressHydrationWarning
               type="checkbox"
               checked={allIds.length > 0 && selected.size === allIds.length}
               onChange={toggleAll}
@@ -138,7 +150,7 @@ export function MarketCostsTable({
           {group.items.map((cost) => (
             <tr key={cost.id}>
               <td className="px-4 py-3">
-                <input
+                <input suppressHydrationWarning
                   type="checkbox"
                   checked={selected.has(cost.id)}
                   onChange={() => toggleOne(cost.id)}
@@ -153,18 +165,40 @@ export function MarketCostsTable({
               </td>
               <td className="px-4 py-3">{formatMoney(cost.amount)}</td>
               <td className="px-4 py-3 text-right">
-                <form suppressHydrationWarning action={deleteAction.bind(null, cost.id)}>
-                  <ConfirmSubmitButton
-                    spinnerClassName="h-3 w-3"
-                    confirmTitle="Delete this market cost?"
-                    confirmMessage={`This will permanently delete "${cost.description}". This cannot be undone.`}
-                    confirmLabel="Delete"
-                    danger
-                    className="text-xs font-medium text-red-600 hover:underline"
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => onEdit(cost)}
+                    aria-label="Edit"
+                    title="Edit"
+                    className="rounded-md p-1.5 text-brand-brown hover:bg-brand-cream"
                   >
-                    Delete
-                  </ConfirmSubmitButton>
-                </form>
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <form
+                    suppressHydrationWarning
+                    action={async () => {
+                      await withToast(
+                        toast,
+                        () => deleteAction(cost.id),
+                        `"${cost.description}" deleted.`
+                      );
+                    }}
+                  >
+                    <ConfirmSubmitButton
+                      spinnerClassName="h-3 w-3"
+                      confirmTitle="Delete this market cost?"
+                      confirmMessage={`This will permanently delete "${cost.description}". This cannot be undone.`}
+                      confirmLabel="Delete"
+                      danger
+                      aria-label="Delete"
+                      title="Delete"
+                      className="rounded-md p-1.5 text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </ConfirmSubmitButton>
+                  </form>
+                </div>
               </td>
             </tr>
           ))}
@@ -182,6 +216,7 @@ export function MarketCostsTable({
         </tr>
       </tfoot>
       </table>
+      </div>
     </>
   );
 }

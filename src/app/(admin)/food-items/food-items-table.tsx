@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import { formatMoney, toNumber } from "@/lib/money";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { BulkDeleteBar } from "@/components/bulk-delete-bar";
+import { useToast, withToast } from "@/components/toast";
 import {
   SortableHeader,
   nextSortState,
@@ -29,15 +31,18 @@ export function FoodItemsTable({
   deleteAction,
   bulkDeleteAction,
   onEdit,
+  emptyMessage = "No food items yet.",
 }: {
   items: FoodItemRow[];
   toggleAction: (id: string, isActive: boolean) => void | Promise<void>;
   deleteAction: (id: string) => void | Promise<void>;
   bulkDeleteAction: (ids: string[]) => void | Promise<void>;
   onEdit: (item: FoodItemRow) => void;
+  emptyMessage?: string;
 }) {
   const [sort, setSort] = useState<SortState<SortKey>>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toast = useToast();
 
   const rows = useMemo(() => {
     const computed = items.map((item) => {
@@ -87,18 +92,24 @@ export function FoodItemsTable({
   }
 
   async function handleBulkDelete() {
-    await bulkDeleteAction(Array.from(selected));
-    setSelected(new Set());
+    const ids = Array.from(selected);
+    const ok = await withToast(
+      toast,
+      () => bulkDeleteAction(ids),
+      `${ids.length} food item${ids.length === 1 ? "" : "s"} deleted.`
+    );
+    if (ok) setSelected(new Set());
   }
 
   return (
     <>
       <BulkDeleteBar count={selected.size} action={handleBulkDelete} />
+      <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
         <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
         <tr>
           <th className="px-4 py-3">
-            <input
+            <input suppressHydrationWarning
               type="checkbox"
               checked={rows.length > 0 && selected.size === rows.length}
               onChange={toggleAll}
@@ -143,7 +154,7 @@ export function FoodItemsTable({
         {rows.map((item) => (
           <tr key={item.id}>
             <td className="px-4 py-3">
-              <input
+              <input suppressHydrationWarning
                 type="checkbox"
                 checked={selected.has(item.id)}
                 onChange={() => toggleOne(item.id)}
@@ -166,7 +177,18 @@ export function FoodItemsTable({
               {formatMoney(item.margin)}
             </td>
             <td className="px-4 py-3">
-              <form suppressHydrationWarning action={toggleAction.bind(null, item.id, !item.isActive)}>
+              <form
+                suppressHydrationWarning
+                action={async () => {
+                  await withToast(
+                    toast,
+                    () => toggleAction(item.id, !item.isActive),
+                    item.isActive
+                      ? `"${item.name}" marked inactive.`
+                      : `"${item.name}" marked active.`
+                  );
+                }}
+              >
                 <SubmitButton
                   spinnerClassName="h-3 w-3"
                   className={`rounded-full px-2 py-1 text-xs font-medium ${
@@ -184,20 +206,33 @@ export function FoodItemsTable({
                 <button
                   type="button"
                   onClick={() => onEdit(item)}
-                  className="text-xs font-medium text-brand-brown hover:underline"
+                  aria-label="Edit"
+                  title="Edit"
+                  className="rounded-md p-1.5 text-brand-brown hover:bg-brand-cream"
                 >
-                  Edit
+                  <Pencil className="h-4 w-4" />
                 </button>
-                <form suppressHydrationWarning action={deleteAction.bind(null, item.id)}>
+                <form
+                  suppressHydrationWarning
+                  action={async () => {
+                    await withToast(
+                      toast,
+                      () => deleteAction(item.id),
+                      `"${item.name}" deleted.`
+                    );
+                  }}
+                >
                   <ConfirmSubmitButton
                     spinnerClassName="h-3 w-3"
                     confirmTitle="Delete this food item?"
                     confirmMessage={`This will permanently delete "${item.name}". This cannot be undone.`}
                     confirmLabel="Delete"
                     danger
-                    className="text-xs font-medium text-red-600 hover:underline"
+                    aria-label="Delete"
+                    title="Delete"
+                    className="rounded-md p-1.5 text-red-600 hover:bg-red-50"
                   >
-                    Delete
+                    <Trash2 className="h-4 w-4" />
                   </ConfirmSubmitButton>
                 </form>
               </div>
@@ -210,12 +245,13 @@ export function FoodItemsTable({
               colSpan={8}
               className="px-4 py-6 text-center text-sm text-brand-brown-light"
             >
-              No food items yet.
+              {emptyMessage}
             </td>
           </tr>
         )}
       </tbody>
       </table>
+      </div>
     </>
   );
 }

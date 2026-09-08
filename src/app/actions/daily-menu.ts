@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { parseDateInput } from "@/lib/date";
 import { revalidatePath } from "next/cache";
 
 async function requireAdmin() {
@@ -12,7 +13,6 @@ async function requireAdmin() {
 function revalidateMenuConsumers() {
   revalidatePath("/orders");
   revalidatePath("/sales");
-  revalidatePath("/food-items");
 }
 
 export async function addToDailyMenu(formData: FormData) {
@@ -23,7 +23,7 @@ export async function addToDailyMenu(formData: FormData) {
 
   if (!name) throw new Error("Dish name is required");
 
-  const date = dateStr ? new Date(dateStr) : new Date();
+  const date = parseDateInput(dateStr);
 
   // Reuse an existing food item by name (case-insensitive), or quick-create
   // one with placeholder pricing — the point is adding to the menu shouldn't
@@ -32,10 +32,12 @@ export async function addToDailyMenu(formData: FormData) {
   let foodItem = await prisma.foodItem.findFirst({
     where: { name: { equals: name, mode: "insensitive" } },
   });
+  let isNewFoodItem = false;
   if (!foodItem) {
     foodItem = await prisma.foodItem.create({
       data: { name, costPrice: 0, sellingPrice: 0 },
     });
+    isNewFoodItem = true;
   }
 
   await prisma.dailyMenu.upsert({
@@ -45,6 +47,10 @@ export async function addToDailyMenu(formData: FormData) {
   });
 
   revalidateMenuConsumers();
+  // Only quick-creating a brand-new food item actually changes what /food-items
+  // shows — reusing an existing one (the common case) doesn't, so that page
+  // doesn't need to re-render on every menu addition.
+  if (isNewFoodItem) revalidatePath("/food-items");
 }
 
 export async function removeFromDailyMenu(id: string) {

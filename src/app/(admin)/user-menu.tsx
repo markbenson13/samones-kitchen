@@ -37,6 +37,7 @@ export function UserMenu({
         type="button"
         onClick={() => setOpen((o) => !o)}
         title={collapsed ? name : undefined}
+        aria-label={collapsed ? name : undefined}
         className={`flex w-full items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-brand-brown hover:bg-brand-cream ${
           collapsed ? "justify-center" : "justify-between"
         }`}

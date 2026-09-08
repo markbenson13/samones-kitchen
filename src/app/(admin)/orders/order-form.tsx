@@ -1,26 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { utcDateKey } from "@/lib/date";
 import { formatMoney } from "@/lib/money";
 import { SubmitButton } from "@/components/submit-button";
 import { Combobox } from "@/components/combobox";
+import { useToast, withToast } from "@/components/toast";
 
 type FoodItemOption = { id: string; name: string; sellingPrice: string };
 
 const PAYMENT_MODES = ["Cash", "GCash", "Both"];
+const BUILDINGS = ["Amina", "Soraya", "Celeste", "Astra", "Kiran"];
 
 export function OrderForm({
   action,
   menuByDate,
   allFoodItems,
-  allCustomerNames,
   date,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   menuByDate: Record<string, FoodItemOption[]>;
   allFoodItems: FoodItemOption[];
-  allCustomerNames: string[];
   date: string;
 }) {
   const options = useMemo(() => {
@@ -30,7 +30,19 @@ export function OrderForm({
 
   const hasMenuForDay = !!menuByDate[utcDateKey(new Date(date))];
 
-  const [customerName, setCustomerName] = useState("");
+  // Customer identity is building + unit number (e.g. "A-1234") — the
+  // building's first letter is combined with the unit number on submit, so
+  // the customer doesn't have to type the letter prefix themselves.
+  const [building, setBuilding] = useState("Amina");
+  const [unitNumber, setUnitNumber] = useState("");
+  const [search, setSearch] = useState("");
+  const filteredOptions = useMemo(
+    () =>
+      options.filter((item) =>
+        item.name.toLowerCase().includes(search.trim().toLowerCase())
+      ),
+    [options, search]
+  );
 
   // Tracks checked item + quantity + price so the running total can be shown
   // live, without turning every checkbox/quantity/price input into a
@@ -42,9 +54,7 @@ export function OrderForm({
   // it's locked to the item's normal selling price, so a price can't be
   // changed by accident.
   const [saleChecked, setSaleChecked] = useState<Record<string, boolean>>({});
-  // Brief confirmation after a successful submit — the form otherwise gives
-  // no visible sign it worked, making it easy to submit the same order twice.
-  const [justSaved, setJustSaved] = useState(false);
+  const toast = useToast();
   const quantityInputs = useRef<Record<string, HTMLInputElement | null>>({});
   const priceInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -83,12 +93,6 @@ export function OrderForm({
     );
   }
 
-  useEffect(() => {
-    if (!justSaved) return;
-    const timer = setTimeout(() => setJustSaved(false), 3000);
-    return () => clearTimeout(timer);
-  }, [justSaved]);
-
   const total = Object.values(selections).reduce(
     (sum, { quantity, price }) => sum + quantity * price,
     0
@@ -97,30 +101,52 @@ export function OrderForm({
   return (
     <form suppressHydrationWarning
       action={async (formData) => {
-        await action(formData);
-        setCustomerName("");
-        setSelections({});
-        setSaleChecked({});
-        setJustSaved(true);
+        const customerName = `${building.trim().charAt(0).toUpperCase()}-${unitNumber.trim()}`;
+        formData.set("customerName", customerName);
+        const ok = await withToast(
+          toast,
+          () => action(formData),
+          `Order added for ${customerName}.`
+        );
+        if (ok) {
+          setBuilding("Amina");
+          setUnitNumber("");
+          setSelections({});
+          setSaleChecked({});
+          setSearch("");
+        }
       }}
       className="mt-4 space-y-4"
     >
-      <input type="hidden" name="date" value={date} />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="lg:col-span-2">
+      <input suppressHydrationWarning type="hidden" name="date" value={date} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+        <div>
           <label className="block text-xs font-medium text-brand-brown-light">
-            Customer name / unit
+            Building
           </label>
           <div className="mt-1">
             <Combobox
-              name="customerName"
+              name="building"
               required
-              placeholder="e.g. Juan Dela Cruz / Unit 4B"
-              value={customerName}
-              onChange={setCustomerName}
-              options={allCustomerNames}
+              placeholder="e.g. Amina"
+              value={building}
+              onChange={setBuilding}
+              options={BUILDINGS}
             />
           </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-brand-brown-light">
+            Unit number
+          </label>
+          <input suppressHydrationWarning
+            type="text"
+            required
+            placeholder="e.g. 1234"
+            value={unitNumber}
+            onChange={(e) => setUnitNumber(e.target.value)}
+            className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
+          />
         </div>
         <div>
           <label className="block text-xs font-medium text-brand-brown-light">
@@ -170,19 +196,33 @@ export function OrderForm({
         <label className="block text-xs font-medium text-brand-brown-light">
           Order (check one or more)
         </label>
-        <p className="mt-1 text-xs text-brand-brown-light">
-          {hasMenuForDay
-            ? "Showing this day's menu."
-            : "No menu set for this day yet — showing all active items."}
-        </p>
+        {hasMenuForDay ? (
+          <p className="mt-1 text-xs text-brand-brown-light">
+            Showing this day&apos;s menu.
+          </p>
+        ) : (
+          <p className="mt-1 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800">
+            ⚠ No menu set for this day — showing every active item. Set a
+            menu above if this day should be limited.
+          </p>
+        )}
+        <input suppressHydrationWarning
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search items…"
+          className="mt-2 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
+        />
         <div className="mt-2 max-h-64 divide-y divide-brand-tan/60 overflow-y-auto rounded-md border border-brand-tan">
-          {options.map((item) => (
+          {filteredOptions.map((item) => (
             <label
               key={item.id}
-              className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+              className={`flex items-center justify-between gap-3 px-3 py-2 text-sm ${
+                saleChecked[item.id] ? "bg-brand-gold/10" : ""
+              }`}
             >
               <span className="flex items-center gap-2">
-                <input
+                <input suppressHydrationWarning
                   type="checkbox"
                   name="foodItemIds"
                   value={item.id}
@@ -192,7 +232,7 @@ export function OrderForm({
                 <span className="text-brand-brown">{item.name}</span>
               </span>
               <span className="flex items-center gap-2">
-                <input
+                <input suppressHydrationWarning
                   type="number"
                   name={`quantity_${item.id}`}
                   min="1"
@@ -211,7 +251,7 @@ export function OrderForm({
                   className="flex items-center gap-1 text-[11px] text-brand-brown-light"
                   title="Check to sell this item at a discounted price"
                 >
-                  <input
+                  <input suppressHydrationWarning
                     type="checkbox"
                     name={`sale_${item.id}`}
                     checked={!!saleChecked[item.id]}
@@ -222,7 +262,7 @@ export function OrderForm({
                   />
                   Sale
                 </label>
-                <input
+                <input suppressHydrationWarning
                   type="number"
                   name={`price_${item.id}`}
                   min="0"
@@ -263,9 +303,6 @@ export function OrderForm({
         >
           Add order
         </SubmitButton>
-        {justSaved && (
-          <span className="text-sm text-emerald-700">✓ Added</span>
-        )}
       </div>
     </form>
   );

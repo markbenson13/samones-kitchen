@@ -43,6 +43,8 @@ model MarketCost {
   quantity    String?
   amount      Decimal  @db.Decimal(10, 2)
   createdAt   DateTime @default(now())
+
+  @@index([date])
 }
 
 // Operating expenses (gas, packaging, transportation, etc.) — distinct from
@@ -53,6 +55,8 @@ model Expense {
   description String
   amount      Decimal  @db.Decimal(10, 2)
   createdAt   DateTime @default(now())
+
+  @@index([date])
 }
 
 model Sale {
@@ -76,6 +80,8 @@ model Sale {
 
   foodItemId String
   foodItem   FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Restrict)
+
+  @@index([date])
 }
 
 // Declares which food items are being offered on a given day, independent of
@@ -116,4 +122,9 @@ model Order {
 
   foodItemId String
   foodItem   FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Restrict)
+
+  @@index([date])
+  @@index([paymentStatus])
+  @@index([deliveryStatus])
+  @@index([orderGroupId])
 }

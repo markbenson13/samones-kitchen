@@ -1,8 +1,10 @@
 "use server";
 
 import { randomUUID } from "crypto";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { parseDateInput } from "@/lib/date";
 import { revalidatePath } from "next/cache";
 
 async function requireAdmin() {
@@ -134,6 +136,81 @@ async function removeSaleCarryover(
   });
 }
 
+// A regular order directly contributes to that day's regular-price Sale row
+// for the food item — "sold" accumulates, "made" is never touched (it's a
+// kitchen fact the admin owns; the automation should never guess/inflate
+// it). If quantity later exceeds quantityMade, that's an intentional signal
+// — SalesTable already renders it as a red "leftover", nudging the admin to
+// go correct Tubs made, not a state to prevent.
+async function addRegularContribution(
+  foodItemId: string,
+  date: Date,
+  quantity: number,
+  unitPrice: number
+) {
+  const existing = await findRegularSale(foodItemId, date);
+  if (existing) {
+    const newQuantity = existing.quantity + quantity;
+    const newTotal = Number(existing.totalAmount) + unitPrice * quantity;
+    await prisma.sale.update({
+      where: { id: existing.id },
+      data: {
+        quantity: newQuantity,
+        unitPrice: newTotal / newQuantity,
+        totalAmount: newTotal,
+      },
+    });
+  } else {
+    // No regular Sales row logged yet for this item/day — create one,
+    // seeding "Tubs made" with this order's quantity (a placeholder: "at
+    // least this many were made"). Starts leftover at 0 rather than a
+    // misleading large negative; the admin corrects it once they know the
+    // real total production count.
+    await prisma.sale.create({
+      data: {
+        foodItemId,
+        date,
+        quantityMade: quantity,
+        quantity,
+        unitPrice,
+        totalAmount: unitPrice * quantity,
+        isSale: false,
+      },
+    });
+  }
+}
+
+// The reverse — subtracts a regular order's contribution back out.
+// Deliberately NEVER deletes the row (unlike removeSaleCarryover's
+// delete-when-empty): "quantityMade" may hold real, independently
+// hand-entered kitchen data even if "sold" drops to 0, and — more
+// importantly — leaving it untouched is required for correct composition
+// when this is called as part of a regular->Sale toggle edit: removing the
+// regular contribution first (leaving quantityMade untouched) lets
+// addSaleCarryover's own leftover computation (quantityMade - quantity) size
+// the new Sale row correctly. If this decremented quantityMade in lockstep,
+// that would silently double-subtract and destroy hand-corrected production
+// data. Do not "clean up" this asymmetry.
+async function removeRegularContribution(
+  foodItemId: string,
+  date: Date,
+  quantity: number,
+  unitPrice: number
+) {
+  const existing = await findRegularSale(foodItemId, date);
+  if (!existing) return;
+  const newQuantity = Math.max(0, existing.quantity - quantity);
+  const newTotal = Math.max(0, Number(existing.totalAmount) - unitPrice * quantity);
+  await prisma.sale.update({
+    where: { id: existing.id },
+    data: {
+      quantity: newQuantity,
+      unitPrice: newQuantity > 0 ? newTotal / newQuantity : Number(existing.unitPrice),
+      totalAmount: newTotal,
+    },
+  });
+}
+
 export async function createOrder(formData: FormData) {
   await requireAdmin();
 
@@ -182,7 +259,7 @@ export async function createOrder(formData: FormData) {
     throw new Error("One of the selected food items was not found");
   const priceById = new Map(foodItems.map((f) => [f.id, f.sellingPrice]));
 
-  const date = dateStr ? new Date(dateStr) : new Date();
+  const date = parseDateInput(dateStr);
   const orderGroupId = randomUUID();
 
   await prisma.order.createMany({
@@ -204,10 +281,160 @@ export async function createOrder(formData: FormData) {
   });
 
   for (const { foodItemId, quantity, unitPriceOverride, isSale } of items) {
-    if (!isSale) continue;
     const unitPrice = unitPriceOverride ?? Number(priceById.get(foodItemId)!);
-    await addSaleCarryover(foodItemId, date, quantity, unitPrice);
+    if (isSale) {
+      await addSaleCarryover(foodItemId, date, quantity, unitPrice);
+    } else {
+      await addRegularContribution(foodItemId, date, quantity, unitPrice);
+    }
   }
+
+  revalidatePath("/orders");
+  revalidatePath("/sales");
+  revalidatePath("/dashboard");
+}
+
+// Adds one more line item to an already-placed order — for when a customer's
+// order turns out to be missing something, without having to delete and
+// recreate the whole batch (which would lose its original identity) or
+// start a whole separate batch for the same customer.
+export async function addOrderItem(formData: FormData) {
+  await requireAdmin();
+
+  const groupKey = String(formData.get("groupKey") ?? "");
+  const foodItemId = String(formData.get("foodItemId") ?? "");
+  const quantity = Number(formData.get("quantity"));
+  if (!groupKey) throw new Error("Missing order");
+  if (!foodItemId) throw new Error("Food item is required");
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw new Error("Invalid quantity");
+  }
+
+  const isSale = formData.get("isSale") === "on";
+  const priceInput = formData.get("price");
+  const unitPriceOverride =
+    isSale && priceInput !== null && priceInput !== ""
+      ? Number(priceInput)
+      : null;
+  if (unitPriceOverride !== null && !Number.isFinite(unitPriceOverride)) {
+    throw new Error("Invalid unit price");
+  }
+  if (unitPriceOverride !== null && unitPriceOverride < 0) {
+    throw new Error("Unit price cannot be negative");
+  }
+
+  // Copy the batch's shared fields (customer, date, payment/delivery
+  // status, mode) from an existing row in it onto the new item, so it joins
+  // the same order rather than looking like a separate one.
+  const existing = await prisma.order.findFirst({ where: groupWhere(groupKey) });
+  if (!existing) throw new Error("Order not found");
+
+  const foodItem = await prisma.foodItem.findUnique({
+    where: { id: foodItemId },
+    select: { sellingPrice: true },
+  });
+  if (!foodItem) throw new Error("Food item not found");
+  const unitPrice = unitPriceOverride ?? Number(foodItem.sellingPrice);
+
+  await prisma.order.create({
+    data: {
+      customerName: existing.customerName,
+      foodItemId,
+      quantity,
+      unitPrice,
+      isSale,
+      paymentStatus: existing.paymentStatus,
+      deliveryStatus: existing.deliveryStatus,
+      paymentMode: existing.paymentMode,
+      date: existing.date,
+      // A legacy singleton row (no orderGroupId of its own) uses its own id
+      // as its group key — assigning that same value here is what actually
+      // turns it into a real multi-item batch going forward.
+      orderGroupId: existing.orderGroupId ?? existing.id,
+    },
+  });
+
+  if (isSale) {
+    await addSaleCarryover(foodItemId, existing.date, quantity, unitPrice);
+  } else {
+    await addRegularContribution(foodItemId, existing.date, quantity, unitPrice);
+  }
+
+  revalidatePath("/orders");
+  revalidatePath("/sales");
+  revalidatePath("/dashboard");
+}
+
+// Edits a single order line item's food item, quantity, and sale price in
+// place instead of requiring delete-and-recreate. Reconciles the Sale
+// carryover by unconditionally reversing the old contribution (if any) then
+// reapplying the new one (if any) — algebraically equivalent to a
+// delete-then-recreate for every transition (sale->sale with changed
+// qty/price, sale->not-sale, not-sale->sale, not-sale->not-sale no-op).
+// Order matters: remove-before-add is load-bearing, not stylistic.
+export async function updateOrderItem(formData: FormData) {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "");
+  const foodItemId = String(formData.get("foodItemId") ?? "");
+  const quantity = Number(formData.get("quantity"));
+  if (!id) throw new Error("Missing order item");
+  if (!foodItemId) throw new Error("Food item is required");
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw new Error("Invalid quantity");
+  }
+
+  const isSale = formData.get("isSale") === "on";
+  const priceInput = formData.get("price");
+  const unitPriceOverride =
+    isSale && priceInput !== null && priceInput !== ""
+      ? Number(priceInput)
+      : null;
+  if (unitPriceOverride !== null && !Number.isFinite(unitPriceOverride)) {
+    throw new Error("Invalid unit price");
+  }
+  if (unitPriceOverride !== null && unitPriceOverride < 0) {
+    throw new Error("Unit price cannot be negative");
+  }
+
+  const old = await prisma.order.findUniqueOrThrow({ where: { id } });
+
+  const foodItem = await prisma.foodItem.findUnique({
+    where: { id: foodItemId },
+    select: { sellingPrice: true },
+  });
+  if (!foodItem) throw new Error("Food item not found");
+  const unitPrice = unitPriceOverride ?? Number(foodItem.sellingPrice);
+
+  await prisma.order.update({
+    where: { id },
+    data: { foodItemId, quantity, unitPrice, isSale },
+  });
+
+  if (old.isSale) {
+    await removeSaleCarryover(
+      old.foodItemId,
+      old.date,
+      old.quantity,
+      Number(old.unitPrice)
+    );
+  } else {
+    await removeRegularContribution(
+      old.foodItemId,
+      old.date,
+      old.quantity,
+      Number(old.unitPrice)
+    );
+  }
+  if (isSale) {
+    await addSaleCarryover(foodItemId, old.date, quantity, unitPrice);
+  } else {
+    await addRegularContribution(foodItemId, old.date, quantity, unitPrice);
+  }
+  // Note: restoreRegularMade doesn't mirror reduceRegularMade's floor, so a
+  // floor-limited original transfer can over-restore here on a full
+  // sale->not-sale edit — same pre-existing asymmetry plain deleteOrder has
+  // always had, not introduced by this edit path.
 
   revalidatePath("/orders");
   revalidatePath("/sales");
@@ -226,13 +453,65 @@ export async function toggleOrderPaymentStatus(
   revalidatePath("/orders");
 }
 
-export async function toggleOrderDeliveryStatus(
-  groupKey: string,
+// Not exported — a "use server" file's exports must all be async functions,
+// so this can't be shared directly with the client-side <select> (which
+// keeps its own identical copy, same as PaymentModeSelect's PAYMENT_MODES).
+const DELIVERY_STATUSES = ["Pending", "For dispatch", "Delivered"] as const;
+
+// A <select> (3 states), not a toggle button like payment status above —
+// reads its fields from FormData instead of taking them as bound args, to
+// match how a <select>'s onChange submits its own form.
+export async function updateOrderDeliveryStatus(formData: FormData) {
+  await requireAdmin();
+  const groupKey = String(formData.get("groupKey") ?? "");
+  const deliveryStatus = String(formData.get("deliveryStatus") ?? "Pending");
+  if (!(DELIVERY_STATUSES as readonly string[]).includes(deliveryStatus)) {
+    throw new Error("Invalid delivery status");
+  }
+  await prisma.order.updateMany({
+    where: groupWhere(groupKey),
+    data: { deliveryStatus },
+  });
+  revalidatePath("/orders");
+  revalidatePath("/sales");
+  revalidatePath("/dashboard");
+}
+
+// Resolves the given order ids to their batches (same "whole batch, not
+// just the checked row" semantics as toggleOrderPaymentStatus/
+// updateOrderDeliveryStatus above) and updates every order in each one —
+// lets a bulk-selected set of rows be marked paid/delivered together
+// instead of one batch at a time.
+async function batchWhereForOrderIds(orderIds: string[]) {
+  const orders = await prisma.order.findMany({
+    where: { id: { in: orderIds } },
+    select: { id: true, orderGroupId: true },
+  });
+  const groupKeys = orders.map((o) => o.orderGroupId ?? o.id);
+  return { OR: [{ orderGroupId: { in: groupKeys } }, { id: { in: groupKeys } }] };
+}
+
+export async function bulkUpdatePaymentStatus(
+  orderIds: string[],
+  paymentStatus: string
+) {
+  await requireAdmin();
+  if (orderIds.length === 0) return;
+  await prisma.order.updateMany({
+    where: await batchWhereForOrderIds(orderIds),
+    data: { paymentStatus },
+  });
+  revalidatePath("/orders");
+}
+
+export async function bulkUpdateDeliveryStatus(
+  orderIds: string[],
   deliveryStatus: string
 ) {
   await requireAdmin();
+  if (orderIds.length === 0) return;
   await prisma.order.updateMany({
-    where: groupWhere(groupKey),
+    where: await batchWhereForOrderIds(orderIds),
     data: { deliveryStatus },
   });
   revalidatePath("/orders");
@@ -250,9 +529,13 @@ export async function updateOrderPaymentMode(formData: FormData) {
   revalidatePath("/orders");
 }
 
-export async function deleteOrder(id: string) {
-  await requireAdmin();
-  const order = await prisma.order.delete({ where: { id } });
+async function reverseOrderContribution(order: {
+  foodItemId: string;
+  date: Date;
+  quantity: number;
+  unitPrice: Prisma.Decimal;
+  isSale: boolean;
+}) {
   if (order.isSale) {
     await removeSaleCarryover(
       order.foodItemId,
@@ -260,6 +543,34 @@ export async function deleteOrder(id: string) {
       order.quantity,
       Number(order.unitPrice)
     );
+  } else {
+    await removeRegularContribution(
+      order.foodItemId,
+      order.date,
+      order.quantity,
+      Number(order.unitPrice)
+    );
+  }
+}
+
+export async function deleteOrder(id: string) {
+  await requireAdmin();
+  const order = await prisma.order.delete({ where: { id } });
+  await reverseOrderContribution(order);
+  revalidatePath("/orders");
+  revalidatePath("/sales");
+  revalidatePath("/dashboard");
+}
+
+// Shared by deleteOrders (by id list) and deleteOrderBatch (by group) —
+// fetches the rows before deleting so each one's contribution (Sale-tagged
+// or regular) can be reversed out of whichever Sale row it was folded into.
+async function deleteOrdersWhere(where: Prisma.OrderWhereInput) {
+  const orders = await prisma.order.findMany({ where });
+  if (orders.length === 0) return;
+  await prisma.order.deleteMany({ where });
+  for (const order of orders) {
+    await reverseOrderContribution(order);
   }
   revalidatePath("/orders");
   revalidatePath("/sales");
@@ -269,21 +580,12 @@ export async function deleteOrder(id: string) {
 export async function deleteOrders(ids: string[]) {
   await requireAdmin();
   if (ids.length === 0) return;
-  // Fetched before deleting so any Sale-tagged rows' contribution can be
-  // reversed out of the Sale row it was folded into.
-  const orders = await prisma.order.findMany({ where: { id: { in: ids } } });
-  await prisma.order.deleteMany({ where: { id: { in: ids } } });
-  for (const order of orders) {
-    if (order.isSale) {
-      await removeSaleCarryover(
-        order.foodItemId,
-        order.date,
-        order.quantity,
-        Number(order.unitPrice)
-      );
-    }
-  }
-  revalidatePath("/orders");
-  revalidatePath("/sales");
-  revalidatePath("/dashboard");
+  await deleteOrdersWhere({ id: { in: ids } });
+}
+
+// Cancels every item in one customer's order submission at once, instead of
+// deleting each line item individually.
+export async function deleteOrderBatch(groupKey: string) {
+  await requireAdmin();
+  await deleteOrdersWhere(groupWhere(groupKey));
 }

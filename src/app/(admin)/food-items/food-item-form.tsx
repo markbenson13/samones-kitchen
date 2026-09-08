@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Combobox } from "@/components/combobox";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { useToast, withToast } from "@/components/toast";
 
 type FoodItemOption = {
   id: string;
@@ -20,17 +21,25 @@ export function FoodItemForm({
   items,
   categories,
   editingItem,
+  onCancelEdit,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   items: FoodItemOption[];
   categories: string[];
   editingItem?: FoodItemOption | null;
+  onCancelEdit?: () => void;
 }) {
   const [fields, setFields] = useState(emptyState);
+  const toast = useToast();
 
   // Adjust local fields when a new item is selected for editing, without an
   // effect: https://react.dev/learn/you-might-not-need-an-effect
-  const [syncedEditingItem, setSyncedEditingItem] = useState(editingItem);
+  // Seeded with null (not `editingItem`) so this still syncs correctly the
+  // first time this component renders — it can mount directly into an
+  // already-in-progress edit now that its parent section is collapsible and
+  // only mounts this form once expanded, rather than always being mounted.
+  const [syncedEditingItem, setSyncedEditingItem] =
+    useState<FoodItemOption | null>(null);
   if (editingItem && editingItem !== syncedEditingItem) {
     setSyncedEditingItem(editingItem);
     setFields({
@@ -60,8 +69,17 @@ export function FoodItemForm({
   }
 
   async function handleAction(formData: FormData) {
-    await action(formData);
-    setFields(emptyState);
+    const isEdit = Boolean(fields.id);
+    const name = fields.name;
+    const ok = await withToast(
+      toast,
+      () => action(formData),
+      isEdit ? `"${name}" updated.` : `"${name}" added.`
+    );
+    if (ok) {
+      setFields(emptyState);
+      onCancelEdit?.();
+    }
   }
 
   return (
@@ -69,7 +87,7 @@ export function FoodItemForm({
       action={handleAction}
       className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
     >
-      <input type="hidden" name="id" value={fields.id} />
+      <input suppressHydrationWarning type="hidden" name="id" value={fields.id} />
 
       <div className="lg:col-span-2">
         <label className="block text-xs font-medium text-brand-brown-light">
@@ -106,7 +124,7 @@ export function FoodItemForm({
         <label className="block text-xs font-medium text-brand-brown-light">
           Cost price
         </label>
-        <input
+        <input suppressHydrationWarning
           name="costPrice"
           type="number"
           step="0.01"
@@ -122,7 +140,7 @@ export function FoodItemForm({
         <label className="block text-xs font-medium text-brand-brown-light">
           Selling price
         </label>
-        <input
+        <input suppressHydrationWarning
           name="sellingPrice"
           type="number"
           step="0.01"
@@ -158,7 +176,10 @@ export function FoodItemForm({
         {fields.id && (
           <button
             type="button"
-            onClick={() => setFields(emptyState)}
+            onClick={() => {
+              setFields(emptyState);
+              onCancelEdit?.();
+            }}
             className="rounded-md border border-brand-tan px-4 py-2 text-sm font-medium text-brand-brown hover:bg-brand-cream"
           >
             Cancel

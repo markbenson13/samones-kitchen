@@ -3,9 +3,15 @@
 import { useState } from "react";
 import { FormPendingReporter } from "@/components/loading-overlay";
 
-const PAYMENT_MODES = ["Cash", "GCash", "Both"];
+const DELIVERY_STATUSES = ["Pending", "For dispatch", "Delivered"];
 
-export function PaymentModeSelect({
+const STATUS_STYLES: Record<string, string> = {
+  Pending: "bg-neutral-200 text-neutral-600",
+  "For dispatch": "bg-amber-100 text-amber-800",
+  Delivered: "bg-emerald-100 text-emerald-700",
+};
+
+export function DeliveryStatusSelect({
   action,
   groupKey,
   defaultValue,
@@ -28,24 +34,25 @@ export function PaymentModeSelect({
     <form suppressHydrationWarning action={action}>
       <FormPendingReporter />
       <input suppressHydrationWarning type="hidden" name="groupKey" value={groupKey} />
-      {/* Keyed on value so a change forces a fresh mount: React resets a
-          form's fields to their own defaultValue once its action completes,
-          and since it skips re-writing a controlled value it already
-          believes is unchanged, an uncontrolled select could get silently
-          snapped back to a stale option. Remounting sidesteps that. */}
+      {/* Keyed on value so a change forces a fresh mount — same reasoning
+          as PaymentModeSelect: an uncontrolled select could otherwise get
+          silently snapped back to a stale option once the form's action
+          completes and React resets fields to their own defaultValue. */}
       <select
         key={value}
-        name="paymentMode"
+        name="deliveryStatus"
         defaultValue={value}
         onChange={(e) => {
           setValue(e.target.value);
           e.currentTarget.form?.requestSubmit();
         }}
-        className="rounded-md border border-brand-tan px-2 py-1 text-xs text-brand-brown"
+        className={`rounded-full border-0 px-2 py-1 text-xs font-medium ${
+          STATUS_STYLES[value] ?? "bg-neutral-200 text-neutral-600"
+        }`}
       >
-        {PAYMENT_MODES.map((mode) => (
-          <option key={mode} value={mode}>
-            {mode}
+        {DELIVERY_STATUSES.map((status) => (
+          <option key={status} value={status}>
+            {status}
           </option>
         ))}
       </select>

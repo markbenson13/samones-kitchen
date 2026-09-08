@@ -1,6 +1,14 @@
 @import "tailwindcss";
 
 :root {
+  /* This app is light-themed only (every component uses hardcoded light
+     Tailwind classes, not the --background/--foreground tokens below, which
+     only body itself reads) — without this, browsers render native form
+     controls (<select>, date inputs, etc.) using the OS's dark/light
+     preference regardless of the page's own styling. On a device in Dark
+     Mode (common on iPad) that made dropdowns render with a different,
+     lighter/compressed native appearance than the rest of the page. */
+  color-scheme: light;
   --background: #fafaf9;
   --foreground: #3b2313;
   --brand-cream: #fdf6e3;
@@ -26,13 +34,6 @@
   --color-brand-gold: var(--brand-gold);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #241407;
-    --foreground: #f3e1b8;
-  }
 }
 
 html {
