@@ -293,6 +293,77 @@ export async function createOrder(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+// Adds one more line item to an already-placed order — for when a customer's
+// order turns out to be missing something, without having to delete and
+// recreate the whole batch (which would lose its original identity) or
+// start a whole separate batch for the same customer.
+export async function addOrderItem(formData: FormData) {
+  await requireAdmin();
+
+  const groupKey = String(formData.get("groupKey") ?? "");
+  const foodItemId = String(formData.get("foodItemId") ?? "");
+  const quantity = Number(formData.get("quantity"));
+  if (!groupKey) throw new Error("Missing order");
+  if (!foodItemId) throw new Error("Food item is required");
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw new Error("Invalid quantity");
+  }
+
+  const isSale = formData.get("isSale") === "on";
+  const priceInput = formData.get("price");
+  const unitPriceOverride =
+    isSale && priceInput !== null && priceInput !== ""
+      ? Number(priceInput)
+      : null;
+  if (unitPriceOverride !== null && !Number.isFinite(unitPriceOverride)) {
+    throw new Error("Invalid unit price");
+  }
+  if (unitPriceOverride !== null && unitPriceOverride < 0) {
+    throw new Error("Unit price cannot be negative");
+  }
+
+  // Copy the batch's shared fields (customer, date, payment/delivery
+  // status, mode) from an existing row in it onto the new item, so it joins
+  // the same order rather than looking like a separate one.
+  const existing = await prisma.order.findFirst({ where: groupWhere(groupKey) });
+  if (!existing) throw new Error("Order not found");
+
+  const foodItem = await prisma.foodItem.findUnique({
+    where: { id: foodItemId },
+    select: { sellingPrice: true },
+  });
+  if (!foodItem) throw new Error("Food item not found");
+  const unitPrice = unitPriceOverride ?? Number(foodItem.sellingPrice);
+
+  await prisma.order.create({
+    data: {
+      customerName: existing.customerName,
+      foodItemId,
+      quantity,
+      unitPrice,
+      isSale,
+      paymentStatus: existing.paymentStatus,
+      deliveryStatus: existing.deliveryStatus,
+      paymentMode: existing.paymentMode,
+      date: existing.date,
+      // A legacy singleton row (no orderGroupId of its own) uses its own id
+      // as its group key — assigning that same value here is what actually
+      // turns it into a real multi-item batch going forward.
+      orderGroupId: existing.orderGroupId ?? existing.id,
+    },
+  });
+
+  if (isSale) {
+    await addSaleCarryover(foodItemId, existing.date, quantity, unitPrice);
+  } else {
+    await addRegularContribution(foodItemId, existing.date, quantity, unitPrice);
+  }
+
+  revalidatePath("/orders");
+  revalidatePath("/sales");
+  revalidatePath("/dashboard");
+}
+
 // Edits a single order line item's food item, quantity, and sale price in
 // place instead of requiring delete-and-recreate. Reconciles the Sale
 // carryover by unconditionally reversing the old contribution (if any) then

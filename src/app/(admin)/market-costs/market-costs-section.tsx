@@ -17,6 +17,7 @@ type Group = { key: string; label: string; items: CostRow[]; subtotal: number };
 
 export function MarketCostsSection({
   action,
+  createAction,
   defaultDate,
   groups,
   deleteAction,
@@ -27,6 +28,7 @@ export function MarketCostsSection({
   pagination,
 }: {
   action: (formData: FormData) => void | Promise<void>;
+  createAction: (formData: FormData) => void | Promise<void>;
   defaultDate: string;
   groups: Group[];
   deleteAction: (id: string) => void | Promise<void>;
@@ -50,13 +52,14 @@ export function MarketCostsSection({
   return (
     <>
       <CollapsibleSection
-        title={editingCost ? "Edit cost" : "Add cost"}
+        title={editingCost ? "Edit cost" : "Add costs"}
         defaultOpen={false}
         open={editingCost !== null || formOpen}
         onOpenChange={handleOpenChange}
       >
         <MarketCostForm
           action={action}
+          createAction={createAction}
           defaultDate={defaultDate}
           editingCost={editingCost}
           onCancelEdit={() => handleOpenChange(false)}

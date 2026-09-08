@@ -1,10 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import { PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
 import { NavLinks, NavLink } from "./nav-links";
 import { UserMenu } from "./user-menu";
+
+// Below this, the sidebar's own fixed 240px width starts eating too much of
+// a tablet's content area — matches the xl breakpoint this app's other
+// pages already use for the same reason (see dashboard/page.tsx).
+const COLLAPSE_QUERY = "(max-width: 1279px)";
+
+function subscribe(callback: () => void) {
+  const mql = window.matchMedia(COLLAPSE_QUERY);
+  mql.addEventListener("change", callback);
+  return () => mql.removeEventListener("change", callback);
+}
+function getSnapshot() {
+  return window.matchMedia(COLLAPSE_QUERY).matches;
+}
+// The server has no viewport to go on — matches this component's original,
+// always-expanded default, so there's nothing for the client to correct
+// once it takes over (useSyncExternalStore handles that hydration handoff
+// without a mismatch, unlike reading window.innerWidth in an effect or a
+// useState initializer would).
+function getServerSnapshot() {
+  return false;
+}
 
 export function Sidebar({
   userName,
@@ -15,7 +37,17 @@ export function Sidebar({
   userEmail?: string | null;
   signOutAction: () => void | Promise<void>;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  // Defaults to collapsed on tablet-and-narrower screens, expanded above
+  // that — reactively, so rotating a tablet adjusts it too — until the user
+  // manually toggles it once, after which their explicit choice sticks
+  // regardless of screen size.
+  const isNarrowViewport = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot
+  );
+  const [manualOverride, setManualOverride] = useState<boolean | null>(null);
+  const collapsed = manualOverride ?? isNarrowViewport;
 
   return (
     <aside
@@ -44,7 +76,7 @@ export function Sidebar({
         </div>
         <button
           type="button"
-          onClick={() => setCollapsed((c) => !c)}
+          onClick={() => setManualOverride(!collapsed)}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-brand-brown-light hover:bg-brand-cream hover:text-brand-red"
         >

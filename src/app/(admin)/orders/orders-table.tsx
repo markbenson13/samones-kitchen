@@ -159,6 +159,142 @@ function EditOrderItemRow({
   );
 }
 
+function AddItemToOrderRow({
+  groupKey,
+  options,
+  onCancel,
+  addOrderItem,
+}: {
+  groupKey: string;
+  options: FoodItemOption[];
+  onCancel: () => void;
+  addOrderItem: (formData: FormData) => void | Promise<void>;
+}) {
+  const [foodItemId, setFoodItemId] = useState(options[0]?.id ?? "");
+  const [quantity, setQuantity] = useState("1");
+  const [isSale, setIsSale] = useState(false);
+  const [price, setPrice] = useState(options[0]?.sellingPrice ?? "0");
+
+  function handleFoodItemChange(newId: string) {
+    setFoodItemId(newId);
+    if (!isSale) {
+      const selected = options.find((o) => o.id === newId);
+      if (selected) setPrice(selected.sellingPrice);
+    }
+  }
+
+  function handleSaleToggle(checked: boolean) {
+    setIsSale(checked);
+    if (!checked) {
+      const selected = options.find((o) => o.id === foodItemId);
+      setPrice(selected?.sellingPrice ?? "0");
+    }
+  }
+
+  if (options.length === 0) {
+    return (
+      <tr className="border-t border-brand-tan bg-brand-cream/40">
+        <td />
+        <td colSpan={7} className="px-4 py-3 pl-8 text-sm text-brand-brown-light">
+          No menu items available to add for this day.{" "}
+          <button
+            type="button"
+            onClick={onCancel}
+            className="font-medium text-brand-brown hover:underline"
+          >
+            Cancel
+          </button>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className="border-t border-brand-tan bg-brand-cream/40">
+      <td />
+      <td colSpan={7} className="px-4 py-3 pl-8">
+        <form suppressHydrationWarning
+          action={async (formData) => {
+            await addOrderItem(formData);
+            onCancel();
+          }}
+          className="flex flex-wrap items-end gap-3"
+        >
+          <input suppressHydrationWarning type="hidden" name="groupKey" value={groupKey} />
+          <div>
+            <label className="block text-xs font-medium text-brand-brown-light">
+              Food item
+            </label>
+            <select
+              name="foodItemId"
+              required
+              value={foodItemId}
+              onChange={(e) => handleFoodItemChange(e.target.value)}
+              className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
+            >
+              {options.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-brand-brown-light">
+              Quantity
+            </label>
+            <input suppressHydrationWarning
+              name="quantity"
+              type="number"
+              min="1"
+              step="1"
+              required
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="mt-1 w-20 rounded-md border border-brand-tan px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="flex items-center gap-1 text-xs font-medium text-brand-brown-light">
+              <input suppressHydrationWarning
+                type="checkbox"
+                name="isSale"
+                checked={isSale}
+                onChange={(e) => handleSaleToggle(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-brand-tan text-brand-gold focus:ring-brand-gold"
+              />
+              Sale
+            </label>
+            <input suppressHydrationWarning
+              name="price"
+              type="number"
+              min="0"
+              step="0.01"
+              disabled={!isSale}
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className="mt-1 w-24 rounded-md border border-brand-tan px-3 py-2 text-sm disabled:bg-brand-cream disabled:text-brand-brown-light"
+            />
+          </div>
+          <SubmitButton
+            spinnerClassName="h-3 w-3"
+            className="rounded-md bg-brand-red px-3 py-2 text-xs font-medium text-white hover:bg-brand-red-dark"
+          >
+            Add item
+          </SubmitButton>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-brand-tan px-3 py-2 text-xs font-medium text-brand-brown hover:bg-brand-cream"
+          >
+            Cancel
+          </button>
+        </form>
+      </td>
+    </tr>
+  );
+}
+
 type Batch = {
   key: string;
   customerName: string;
@@ -208,6 +344,7 @@ export function OrdersTable({
   toggleOrderDeliveryStatus,
   updateOrderPaymentMode,
   updateOrderItem,
+  addOrderItem,
   menuByDate,
   allFoodItems,
   deleteOrder,
@@ -227,6 +364,7 @@ export function OrdersTable({
   ) => void | Promise<void>;
   updateOrderPaymentMode: (formData: FormData) => void | Promise<void>;
   updateOrderItem: (formData: FormData) => void | Promise<void>;
+  addOrderItem: (formData: FormData) => void | Promise<void>;
   menuByDate: Record<string, FoodItemOption[]>;
   allFoodItems: FoodItemOption[];
   deleteOrder: (id: string) => void | Promise<void>;
@@ -244,6 +382,7 @@ export function OrdersTable({
   const [sort, setSort] = useState<SortState<SortKey>>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editOpenId, setEditOpenId] = useState<string | null>(null);
+  const [addItemOpenKey, setAddItemOpenKey] = useState<string | null>(null);
 
   const sortedGroups = useMemo(
     () =>
@@ -436,20 +575,41 @@ export function OrdersTable({
                   />
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <form suppressHydrationWarning action={deleteOrderBatch.bind(null, batch.key)}>
-                    <ConfirmSubmitButton
-                      spinnerClassName="h-3 w-3"
-                      confirmTitle="Delete this order?"
-                      confirmMessage={`This will permanently delete "${batch.customerName}"'s entire order (${batch.items.length} item${batch.items.length === 1 ? "" : "s"}). This cannot be undone.`}
-                      confirmLabel="Delete order"
-                      danger
-                      className="text-xs font-medium text-red-600 hover:underline"
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAddItemOpenKey((cur) =>
+                          cur === batch.key ? null : batch.key
+                        )
+                      }
+                      className="text-xs font-medium text-brand-brown hover:underline"
                     >
-                      Delete order
-                    </ConfirmSubmitButton>
-                  </form>
+                      + Add item
+                    </button>
+                    <form suppressHydrationWarning action={deleteOrderBatch.bind(null, batch.key)}>
+                      <ConfirmSubmitButton
+                        spinnerClassName="h-3 w-3"
+                        confirmTitle="Delete this order?"
+                        confirmMessage={`This will permanently delete "${batch.customerName}"'s entire order (${batch.items.length} item${batch.items.length === 1 ? "" : "s"}). This cannot be undone.`}
+                        confirmLabel="Delete order"
+                        danger
+                        className="text-xs font-medium text-red-600 hover:underline"
+                      >
+                        Delete order
+                      </ConfirmSubmitButton>
+                    </form>
+                  </div>
                 </td>
               </tr>
+              {addItemOpenKey === batch.key && (
+                <AddItemToOrderRow
+                  groupKey={batch.key}
+                  options={menuByDate[group.key] ?? allFoodItems}
+                  onCancel={() => setAddItemOpenKey(null)}
+                  addOrderItem={addOrderItem}
+                />
+              )}
               {batch.items.map((order) => (
                 <Fragment key={order.id}>
                   <tr>

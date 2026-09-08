@@ -9,6 +9,7 @@ import {
 } from "@/lib/date";
 import {
   upsertMarketCost,
+  createMarketCosts,
   deleteMarketCost,
   deleteMarketCosts,
 } from "@/app/actions/market-costs";
@@ -160,6 +161,7 @@ export default async function MarketCostsPage({
 
       <MarketCostsSection
         action={upsertMarketCost}
+        createAction={createMarketCosts}
         defaultDate={toDateInputValue(new Date())}
         groups={groups.map((group) => ({
           ...group,

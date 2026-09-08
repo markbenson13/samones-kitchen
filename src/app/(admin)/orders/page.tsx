@@ -13,6 +13,7 @@ import {
   bulkUpdateDeliveryStatus,
   updateOrderPaymentMode,
   updateOrderItem,
+  addOrderItem,
 } from "@/app/actions/orders";
 import { addToDailyMenu, removeFromDailyMenu } from "@/app/actions/daily-menu";
 import { OrdersDayPanel } from "./orders-day-panel";
@@ -289,6 +290,7 @@ export default async function OrdersPage({
             toggleOrderDeliveryStatus={toggleOrderDeliveryStatus}
             updateOrderPaymentMode={updateOrderPaymentMode}
             updateOrderItem={updateOrderItem}
+            addOrderItem={addOrderItem}
             menuByDate={menuByDate}
             allFoodItems={foodItems.map((item) => ({
               id: item.id,

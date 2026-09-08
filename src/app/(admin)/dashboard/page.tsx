@@ -53,6 +53,7 @@ export default async function DashboardPage({
     costs,
     expenses,
     topItemGroups,
+    rangeOrders,
     unpaidRows,
     pendingRows,
     selectedDaySales,
@@ -74,6 +75,21 @@ export default async function DashboardPage({
       by: ["foodItemId"],
       where: dateRangeWhere,
       _sum: { totalAmount: true, quantity: true },
+    }),
+    // For "Top customers" below — fetched raw (not Prisma groupBy) so
+    // batches (orderGroupId ?? id) can be deduped in JS the same way
+    // unpaidCount/pendingCount already do; groupBy alone would either
+    // collapse every legacy orderGroupId:null row into one group or count
+    // each line item as its own "order".
+    prisma.order.findMany({
+      where: dateRangeWhere,
+      select: {
+        customerName: true,
+        orderGroupId: true,
+        id: true,
+        quantity: true,
+        unitPrice: true,
+      },
     }),
     // All-time, deliberately not date-scoped — "unpaid" is a current-state
     // flag, not a period metric. An order from weeks ago is still owed
@@ -158,6 +174,32 @@ export default async function DashboardPage({
     revenue: toNumber(group._sum.totalAmount?.toString() ?? "0"),
     quantity: group._sum.quantity ?? 0,
   }));
+
+  // Batches (orderGroupId ?? id), not raw line items — a customer who
+  // ordered 3 dishes in one order placed once, not three times.
+  const customerStats = new Map<
+    string,
+    { batchKeys: Set<string>; totalSpend: number }
+  >();
+  for (const order of rangeOrders) {
+    const stat = customerStats.get(order.customerName) ?? {
+      batchKeys: new Set<string>(),
+      totalSpend: 0,
+    };
+    stat.batchKeys.add(order.orderGroupId ?? order.id);
+    stat.totalSpend += order.quantity * toNumber(order.unitPrice.toString());
+    customerStats.set(order.customerName, stat);
+  }
+  const topCustomers = Array.from(customerStats.entries())
+    .map(([customerName, stat]) => ({
+      customerName,
+      orderCount: stat.batchKeys.size,
+      totalSpend: stat.totalSpend,
+    }))
+    .sort(
+      (a, b) => b.orderCount - a.orderCount || b.totalSpend - a.totalSpend
+    )
+    .slice(0, 10);
 
   const salesByDay = new Map<string, number>();
   for (const sale of sales) {
@@ -354,16 +396,16 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm xl:col-span-2">
-          <h2 className="text-sm font-medium text-brand-brown">
-            {formatRangeDate(fromDate)} – {formatRangeDate(toDate)}
-          </h2>
-          <div className="mt-4 h-72">
-            <IncomeChart data={chartData} />
-          </div>
-        </section>
+      <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-medium text-brand-brown">
+          {formatRangeDate(fromDate)} – {formatRangeDate(toDate)}
+        </h2>
+        <div className="mt-4 h-72">
+          <IncomeChart data={chartData} />
+        </div>
+      </section>
 
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
           <h2 className="text-sm font-medium text-brand-brown">
             Top 10 food items
@@ -394,6 +436,47 @@ export default async function DashboardPage({
                         {formatMoney(item.revenue)}
                       </span>
                       <span className="ml-1.5">{item.quantity} sold</span>
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+
+        <section className="rounded-xl border border-brand-tan bg-white p-6 shadow-sm">
+          <h2 className="text-sm font-medium text-brand-brown">
+            Top customers
+          </h2>
+          <p className="mt-1 text-xs text-brand-brown-light">
+            By number of orders, this range.
+          </p>
+          {topCustomers.length === 0 ? (
+            <p className="mt-4 text-sm text-brand-brown-light">
+              No orders yet.
+            </p>
+          ) : (
+            <ol className="mt-4 space-y-3">
+              {topCustomers.map((customer, i) => (
+                <li
+                  key={customer.customerName}
+                  className="flex items-start gap-3"
+                >
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-cream text-xs font-semibold text-brand-brown">
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-brand-brown">
+                      {customer.customerName}
+                    </p>
+                    <p className="text-xs text-brand-brown-light">
+                      <span className="font-medium text-brand-brown">
+                        {customer.orderCount} order
+                        {customer.orderCount === 1 ? "" : "s"}
+                      </span>
+                      <span className="ml-1.5">
+                        {formatMoney(customer.totalSpend)} spent
+                      </span>
                     </p>
                   </div>
                 </li>
