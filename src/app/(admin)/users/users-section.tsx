@@ -3,6 +3,7 @@
 import { Fragment, useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { useToast, withToast } from "@/components/toast";
 
 type UserRow = {
   id: string;
@@ -28,13 +29,18 @@ function ResetPasswordRow({
   onCancel: () => void;
   resetPasswordAction: (formData: FormData) => void | Promise<void>;
 }) {
+  const toast = useToast();
   return (
     <tr className="border-t border-brand-tan bg-brand-cream/40">
       <td colSpan={2} className="px-4 py-3">
         <form suppressHydrationWarning
           action={async (formData) => {
-            await resetPasswordAction(formData);
-            onCancel();
+            const ok = await withToast(
+              toast,
+              () => resetPasswordAction(formData),
+              "Password reset."
+            );
+            if (ok) onCancel();
           }}
           className="flex flex-wrap items-end gap-3"
         >
@@ -100,6 +106,7 @@ export function UsersSection({
   resetPasswordAction: (formData: FormData) => void | Promise<void>;
 }) {
   const [resetOpenId, setResetOpenId] = useState<string | null>(null);
+  const toast = useToast();
 
   return (
     <div className="space-y-6">
@@ -124,7 +131,16 @@ export function UsersSection({
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-3">
-                      <form suppressHydrationWarning action={approveAction.bind(null, user.id)}>
+                      <form
+                        suppressHydrationWarning
+                        action={async () => {
+                          await withToast(
+                            toast,
+                            () => approveAction(user.id),
+                            `"${user.email}" approved.`
+                          );
+                        }}
+                      >
                         <SubmitButton
                           spinnerClassName="h-3 w-3"
                           className="rounded-md bg-brand-red px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-red-dark"
@@ -132,7 +148,16 @@ export function UsersSection({
                           Approve
                         </SubmitButton>
                       </form>
-                      <form suppressHydrationWarning action={removeAction.bind(null, user.id)}>
+                      <form
+                        suppressHydrationWarning
+                        action={async () => {
+                          await withToast(
+                            toast,
+                            () => removeAction(user.id),
+                            `"${user.email}" rejected.`
+                          );
+                        }}
+                      >
                         <ConfirmSubmitButton
                           spinnerClassName="h-3 w-3"
                           confirmTitle="Reject this sign-up?"
@@ -200,7 +225,16 @@ export function UsersSection({
                             >
                               Reset password
                             </button>
-                            <form suppressHydrationWarning action={removeAction.bind(null, user.id)}>
+                            <form
+                              suppressHydrationWarning
+                              action={async () => {
+                                await withToast(
+                                  toast,
+                                  () => removeAction(user.id),
+                                  `"${user.email}"'s access revoked.`
+                                );
+                              }}
+                            >
                               <ConfirmSubmitButton
                                 spinnerClassName="h-3 w-3"
                                 confirmTitle="Revoke access?"

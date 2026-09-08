@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
+import { useToast, withToast } from "@/components/toast";
 
 export function ChangePasswordForm({
   action,
@@ -13,17 +14,17 @@ export function ChangePasswordForm({
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [done, setDone] = useState(false);
+  const toast = useToast();
 
   return (
     <form suppressHydrationWarning
       action={async (formData) => {
-        setDone(false);
-        await action(formData);
-        setCurrentPassword("");
-        setNewPassword("");
-        setConfirmPassword("");
-        setDone(true);
+        const ok = await withToast(toast, () => action(formData), "Password updated.");
+        if (ok) {
+          setCurrentPassword("");
+          setNewPassword("");
+          setConfirmPassword("");
+        }
       }}
       className="mt-4 space-y-4"
     >
@@ -76,10 +77,6 @@ export function ChangePasswordForm({
           className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
         />
       </div>
-
-      {done && (
-        <p className="text-sm text-emerald-700">Password updated.</p>
-      )}
 
       <SubmitButton
         pendingText="Saving…"

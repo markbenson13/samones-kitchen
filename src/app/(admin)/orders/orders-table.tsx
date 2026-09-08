@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -13,6 +14,8 @@ import {
   type SortState,
 } from "@/components/sortable-header";
 import { PaymentModeSelect } from "./payment-mode-select";
+import { DeliveryStatusSelect } from "./delivery-status-select";
+import { useToast, withToast } from "@/components/toast";
 
 type FoodItemOption = { id: string; name: string; sellingPrice: string };
 
@@ -41,6 +44,7 @@ function EditOrderItemRow({
   const [quantity, setQuantity] = useState(String(item.quantity));
   const [isSale, setIsSale] = useState(item.isSale);
   const [price, setPrice] = useState(String(item.unitPrice));
+  const toast = useToast();
 
   // The order's current item may no longer be in that day's menu (or even
   // active) — union it in so the select still shows the real current value
@@ -79,8 +83,12 @@ function EditOrderItemRow({
       <td colSpan={7} className="px-4 py-3 pl-8">
         <form suppressHydrationWarning
           action={async (formData) => {
-            await updateOrderItem(formData);
-            onCancel();
+            const ok = await withToast(
+              toast,
+              () => updateOrderItem(formData),
+              "Order item updated."
+            );
+            if (ok) onCancel();
           }}
           className="flex flex-wrap items-end gap-3"
         >
@@ -174,6 +182,7 @@ function AddItemToOrderRow({
   const [quantity, setQuantity] = useState("1");
   const [isSale, setIsSale] = useState(false);
   const [price, setPrice] = useState(options[0]?.sellingPrice ?? "0");
+  const toast = useToast();
 
   function handleFoodItemChange(newId: string) {
     setFoodItemId(newId);
@@ -215,8 +224,12 @@ function AddItemToOrderRow({
       <td colSpan={7} className="px-4 py-3 pl-8">
         <form suppressHydrationWarning
           action={async (formData) => {
-            await addOrderItem(formData);
-            onCancel();
+            const ok = await withToast(
+              toast,
+              () => addOrderItem(formData),
+              "Item added to order."
+            );
+            if (ok) onCancel();
           }}
           className="flex flex-wrap items-end gap-3"
         >
@@ -341,7 +354,7 @@ function sortBatches(batches: Batch[], sort: SortState<SortKey>) {
 export function OrdersTable({
   groups,
   toggleOrderPaymentStatus,
-  toggleOrderDeliveryStatus,
+  updateOrderDeliveryStatus,
   updateOrderPaymentMode,
   updateOrderItem,
   addOrderItem,
@@ -358,10 +371,7 @@ export function OrdersTable({
     groupKey: string,
     paymentStatus: string
   ) => void | Promise<void>;
-  toggleOrderDeliveryStatus: (
-    groupKey: string,
-    deliveryStatus: string
-  ) => void | Promise<void>;
+  updateOrderDeliveryStatus: (formData: FormData) => void | Promise<void>;
   updateOrderPaymentMode: (formData: FormData) => void | Promise<void>;
   updateOrderItem: (formData: FormData) => void | Promise<void>;
   addOrderItem: (formData: FormData) => void | Promise<void>;
@@ -383,6 +393,7 @@ export function OrdersTable({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editOpenId, setEditOpenId] = useState<string | null>(null);
   const [addItemOpenKey, setAddItemOpenKey] = useState<string | null>(null);
+  const toast = useToast();
 
   const sortedGroups = useMemo(
     () =>
@@ -417,21 +428,46 @@ export function OrdersTable({
   }
 
   async function handleBulkDelete() {
-    await bulkDeleteOrders(Array.from(selected));
-    setSelected(new Set());
+    const ids = Array.from(selected);
+    const ok = await withToast(
+      toast,
+      () => bulkDeleteOrders(ids),
+      `${ids.length} order item${ids.length === 1 ? "" : "s"} deleted.`
+    );
+    if (ok) setSelected(new Set());
   }
 
   // Payment/delivery status applies per whole batch (same as the per-row
   // toggle above), so bulk-marking updates every batch touched by the
   // current selection — not just the individually checked item rows.
   async function handleMarkPaid() {
-    await bulkUpdatePaymentStatus(Array.from(selected), "Paid");
-    setSelected(new Set());
+    const ids = Array.from(selected);
+    const ok = await withToast(
+      toast,
+      () => bulkUpdatePaymentStatus(ids, "Paid"),
+      `${ids.length} order${ids.length === 1 ? "" : "s"} marked paid.`
+    );
+    if (ok) setSelected(new Set());
+  }
+
+  async function handleMarkForDispatch() {
+    const ids = Array.from(selected);
+    const ok = await withToast(
+      toast,
+      () => bulkUpdateDeliveryStatus(ids, "For dispatch"),
+      `${ids.length} order${ids.length === 1 ? "" : "s"} marked for dispatch.`
+    );
+    if (ok) setSelected(new Set());
   }
 
   async function handleMarkDelivered() {
-    await bulkUpdateDeliveryStatus(Array.from(selected), "Delivered");
-    setSelected(new Set());
+    const ids = Array.from(selected);
+    const ok = await withToast(
+      toast,
+      () => bulkUpdateDeliveryStatus(ids, "Delivered"),
+      `${ids.length} order${ids.length === 1 ? "" : "s"} marked delivered.`
+    );
+    if (ok) setSelected(new Set());
   }
 
   return (
@@ -448,6 +484,14 @@ export function OrdersTable({
                   className="rounded-md px-3 py-1.5 text-xs font-medium text-brand-brown hover:bg-brand-cream"
                 >
                   Mark paid
+                </SubmitButton>
+              </form>
+              <form suppressHydrationWarning action={handleMarkForDispatch}>
+                <SubmitButton
+                  spinnerClassName="h-3 w-3"
+                  className="rounded-md px-3 py-1.5 text-xs font-medium text-brand-brown hover:bg-brand-cream"
+                >
+                  Mark for dispatch
                 </SubmitButton>
               </form>
               <form suppressHydrationWarning action={handleMarkDelivered}>
@@ -529,11 +573,14 @@ export function OrdersTable({
                 </td>
                 <td className="px-4 py-2">
                   <form suppressHydrationWarning
-                    action={toggleOrderPaymentStatus.bind(
-                      null,
-                      batch.key,
-                      batch.paymentStatus === "Paid" ? "Unpaid" : "Paid"
-                    )}
+                    action={async () => {
+                      const next = batch.paymentStatus === "Paid" ? "Unpaid" : "Paid";
+                      await withToast(
+                        toast,
+                        () => toggleOrderPaymentStatus(batch.key, next),
+                        `Marked ${next}.`
+                      );
+                    }}
                   >
                     <SubmitButton
                       spinnerClassName="h-3 w-3"
@@ -548,28 +595,27 @@ export function OrdersTable({
                   </form>
                 </td>
                 <td className="px-4 py-2">
-                  <form suppressHydrationWarning
-                    action={toggleOrderDeliveryStatus.bind(
-                      null,
-                      batch.key,
-                      batch.deliveryStatus === "Delivered" ? "Pending" : "Delivered"
-                    )}
-                  >
-                    <SubmitButton
-                      spinnerClassName="h-3 w-3"
-                      className={`rounded-full px-2 py-1 text-xs font-medium ${
-                        batch.deliveryStatus === "Delivered"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-neutral-200 text-neutral-600"
-                      }`}
-                    >
-                      {batch.deliveryStatus}
-                    </SubmitButton>
-                  </form>
+                  <DeliveryStatusSelect
+                    action={async (formData) => {
+                      await withToast(
+                        toast,
+                        () => updateOrderDeliveryStatus(formData),
+                        "Delivery status updated."
+                      );
+                    }}
+                    groupKey={batch.key}
+                    defaultValue={batch.deliveryStatus}
+                  />
                 </td>
                 <td className="px-4 py-2">
                   <PaymentModeSelect
-                    action={updateOrderPaymentMode}
+                    action={async (formData) => {
+                      await withToast(
+                        toast,
+                        () => updateOrderPaymentMode(formData),
+                        "Payment mode updated."
+                      );
+                    }}
                     groupKey={batch.key}
                     defaultValue={batch.paymentMode}
                   />
@@ -587,7 +633,16 @@ export function OrdersTable({
                     >
                       + Add item
                     </button>
-                    <form suppressHydrationWarning action={deleteOrderBatch.bind(null, batch.key)}>
+                    <form
+                      suppressHydrationWarning
+                      action={async () => {
+                        await withToast(
+                          toast,
+                          () => deleteOrderBatch(batch.key),
+                          `${batch.customerName}'s order deleted.`
+                        );
+                      }}
+                    >
                       <ConfirmSubmitButton
                         spinnerClassName="h-3 w-3"
                         confirmTitle="Delete this order?"
@@ -644,20 +699,33 @@ export function OrdersTable({
                               cur === order.id ? null : order.id
                             )
                           }
-                          className="text-xs font-medium text-brand-brown hover:underline"
+                          aria-label="Edit"
+                          title="Edit"
+                          className="rounded-md p-1.5 text-brand-brown hover:bg-brand-cream"
                         >
-                          Edit
+                          <Pencil className="h-4 w-4" />
                         </button>
-                        <form suppressHydrationWarning action={deleteOrder.bind(null, order.id)}>
+                        <form
+                          suppressHydrationWarning
+                          action={async () => {
+                            await withToast(
+                              toast,
+                              () => deleteOrder(order.id),
+                              `"${order.foodItemName}" removed from order.`
+                            );
+                          }}
+                        >
                           <ConfirmSubmitButton
                             spinnerClassName="h-3 w-3"
                             confirmTitle="Delete this order item?"
                             confirmMessage={`This will permanently delete "${order.foodItemName}" from this order. This cannot be undone.`}
                             confirmLabel="Delete"
                             danger
-                            className="text-xs font-medium text-red-600 hover:underline"
+                            aria-label="Delete"
+                            title="Delete"
+                            className="rounded-md p-1.5 text-red-600 hover:bg-red-50"
                           >
-                            Delete
+                            <Trash2 className="h-4 w-4" />
                           </ConfirmSubmitButton>
                         </form>
                       </div>

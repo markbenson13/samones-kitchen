@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Combobox } from "@/components/combobox";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { useToast, withToast } from "@/components/toast";
 
 type FoodItemOption = {
   id: string;
@@ -29,6 +30,7 @@ export function FoodItemForm({
   onCancelEdit?: () => void;
 }) {
   const [fields, setFields] = useState(emptyState);
+  const toast = useToast();
 
   // Adjust local fields when a new item is selected for editing, without an
   // effect: https://react.dev/learn/you-might-not-need-an-effect
@@ -67,9 +69,17 @@ export function FoodItemForm({
   }
 
   async function handleAction(formData: FormData) {
-    await action(formData);
-    setFields(emptyState);
-    onCancelEdit?.();
+    const isEdit = Boolean(fields.id);
+    const name = fields.name;
+    const ok = await withToast(
+      toast,
+      () => action(formData),
+      isEdit ? `"${name}" updated.` : `"${name}" added.`
+    );
+    if (ok) {
+      setFields(emptyState);
+      onCancelEdit?.();
+    }
   }
 
   return (

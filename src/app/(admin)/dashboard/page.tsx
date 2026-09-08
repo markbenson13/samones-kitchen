@@ -5,6 +5,7 @@ import { toDateInputValue, utcDateKey, formatRangeDate } from "@/lib/date";
 import { IncomeChart } from "./income-chart";
 import { SubmitButton } from "@/components/submit-button";
 import { StatCard } from "@/components/stat-card";
+import { FilterForm } from "@/components/filter-form";
 
 const DEFAULT_RANGE_DAYS = 30;
 const MAX_CHART_DAYS = 366;
@@ -98,8 +99,11 @@ export default async function DashboardPage({
       where: { paymentStatus: "Unpaid" },
       select: { id: true, orderGroupId: true, quantity: true, unitPrice: true },
     }),
+    // "Not yet delivered" — covers both Pending and the in-between "For
+    // dispatch" status, so an order doesn't just disappear from this count
+    // the moment it's sent out but hasn't arrived yet.
     prisma.order.findMany({
-      where: { deliveryStatus: "Pending" },
+      where: { deliveryStatus: { not: "Delivered" } },
       select: { id: true, orderGroupId: true },
     }),
     // Scoped to selectedDay (its own filter, defaulting to today), not the
@@ -253,7 +257,7 @@ export default async function DashboardPage({
         </p>
       </div>
 
-      <form suppressHydrationWarning className="flex flex-wrap items-end gap-3">
+      <FilterForm suppressHydrationWarning className="flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-xs font-medium text-brand-brown-light">
             From
@@ -291,7 +295,7 @@ export default async function DashboardPage({
         {/* Preserves the "Right now" section's own day filter (below) when
             this range filter is applied — the two are independent. */}
         <input suppressHydrationWarning type="hidden" name="day" value={dayParam ?? ""} />
-      </form>
+      </FilterForm>
 
       <div>
         <h2 className="text-sm font-medium text-brand-brown">
@@ -322,7 +326,7 @@ export default async function DashboardPage({
               the range filter above.
             </p>
           </div>
-          <form suppressHydrationWarning className="flex flex-wrap items-end gap-3">
+          <FilterForm suppressHydrationWarning className="flex flex-wrap items-end gap-3">
             <input suppressHydrationWarning type="hidden" name="from" value={fromParam ?? ""} />
             <input suppressHydrationWarning type="hidden" name="to" value={toParam ?? ""} />
             <div>
@@ -356,7 +360,7 @@ export default async function DashboardPage({
                 Today
               </Link>
             )}
-          </form>
+          </FilterForm>
         </div>
         <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Link href={`/sales?date=${utcDateKey(selectedDay)}`} className="block">
@@ -420,18 +424,19 @@ export default async function DashboardPage({
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-cream text-xs font-semibold text-brand-brown">
                     {i + 1}
                   </span>
-                  {/* The name gets its own full-width line instead of
-                      sharing one with the price/qty — sharing a line meant
-                      the name was squeezed down to whatever the price block
-                      didn't need, which truncated hard (or, before a
-                      floor was added, could shrink to 0 width and vanish
-                      entirely) whenever this card was narrow, e.g. in the
-                      side-by-side layout next to the chart. */}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-brand-brown">
+                  {/* Stacked below sm (mobile) so the name always gets a
+                      full line to itself — sharing one squeezed it down to
+                      whatever the price block didn't need, which truncated
+                      hard (or, before a min-w floor, could shrink to 0
+                      width and vanish) when this card was narrow. Side by
+                      side from sm up, where there's reliably enough room
+                      (this card is never narrower than half the page past
+                      that point), to cut the row's height. */}
+                  <div className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
+                    <p className="min-w-16 truncate text-sm text-brand-brown">
                       {item.name}
                     </p>
-                    <p className="text-xs text-brand-brown-light">
+                    <p className="shrink-0 text-xs text-brand-brown-light">
                       <span className="font-medium text-brand-brown">
                         {formatMoney(item.revenue)}
                       </span>
@@ -465,11 +470,11 @@ export default async function DashboardPage({
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-cream text-xs font-semibold text-brand-brown">
                     {i + 1}
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-brand-brown">
+                  <div className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
+                    <p className="min-w-16 truncate text-sm text-brand-brown">
                       {customer.customerName}
                     </p>
-                    <p className="text-xs text-brand-brown-light">
+                    <p className="shrink-0 text-xs text-brand-brown-light">
                       <span className="font-medium text-brand-brown">
                         {customer.orderCount} order
                         {customer.orderCount === 1 ? "" : "s"}

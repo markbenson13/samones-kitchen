@@ -7,6 +7,7 @@ import { upsertSale, deleteSale, deleteSales } from "@/app/actions/sales";
 import { SalesSection } from "./sales-section";
 import { Pagination } from "@/components/pagination";
 import { SubmitButton } from "@/components/submit-button";
+import { FilterForm } from "@/components/filter-form";
 
 const PAGE_SIZE = 25;
 
@@ -122,7 +123,7 @@ export default async function SalesPage({
         </p>
       )}
 
-      <form suppressHydrationWarning className="flex flex-wrap items-end gap-3">
+      <FilterForm suppressHydrationWarning className="flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-xs font-medium text-brand-brown-light">
             Date
@@ -169,7 +170,7 @@ export default async function SalesPage({
         >
           Today
         </Link>
-      </form>
+      </FilterForm>
 
       <SalesSection
         action={upsertSale}

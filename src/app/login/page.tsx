@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { loginAction, loginWithGoogleAction } from "./actions";
 import { SubmitButton } from "@/components/submit-button";
+import { LoginErrorToast } from "./login-error-toast";
 
 export default async function LoginPage({
   searchParams,
@@ -11,6 +12,7 @@ export default async function LoginPage({
 
   return (
     <main className="flex flex-1 items-center justify-center bg-neutral-50 px-4">
+      <LoginErrorToast error={error} />
       <div className="w-full max-w-sm rounded-xl border border-brand-tan bg-white p-8 shadow-sm">
         <div className="flex flex-col items-center text-center">
           <Image
@@ -61,18 +63,6 @@ export default async function LoginPage({
               className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm focus:border-brand-red focus:outline-none"
             />
           </div>
-
-          {error === "pending" && (
-            <p className="text-sm text-red-600">
-              Your Google account is signed in but not yet approved. Ask an
-              existing admin to approve it from the Users page.
-            </p>
-          )}
-          {error && error !== "pending" && (
-            <p className="text-sm text-red-600">
-              Invalid email or password. Please try again.
-            </p>
-          )}
 
           <SubmitButton
             pendingText="Signing in…"

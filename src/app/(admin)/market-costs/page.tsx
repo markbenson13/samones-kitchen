@@ -15,6 +15,7 @@ import {
 } from "@/app/actions/market-costs";
 import { SubmitButton } from "@/components/submit-button";
 import { Pagination } from "@/components/pagination";
+import { FilterForm } from "@/components/filter-form";
 import { MarketCostsSection } from "./market-costs-section";
 
 const DEFAULT_RANGE_DAYS = 30;
@@ -110,7 +111,7 @@ export default async function MarketCostsPage({
         </p>
       </div>
 
-      <form suppressHydrationWarning className="flex flex-wrap items-end gap-3">
+      <FilterForm suppressHydrationWarning className="flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-xs font-medium text-brand-brown-light">
             Search
@@ -157,7 +158,7 @@ export default async function MarketCostsPage({
         >
           Reset
         </Link>
-      </form>
+      </FilterForm>
 
       <MarketCostsSection
         action={upsertMarketCost}

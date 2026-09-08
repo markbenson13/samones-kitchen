@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { utcDateKey } from "@/lib/date";
 import { formatMoney } from "@/lib/money";
 import { SubmitButton } from "@/components/submit-button";
 import { Combobox } from "@/components/combobox";
+import { useToast, withToast } from "@/components/toast";
 
 type FoodItemOption = { id: string; name: string; sellingPrice: string };
 
@@ -53,9 +54,7 @@ export function OrderForm({
   // it's locked to the item's normal selling price, so a price can't be
   // changed by accident.
   const [saleChecked, setSaleChecked] = useState<Record<string, boolean>>({});
-  // Brief confirmation after a successful submit — the form otherwise gives
-  // no visible sign it worked, making it easy to submit the same order twice.
-  const [justSaved, setJustSaved] = useState(false);
+  const toast = useToast();
   const quantityInputs = useRef<Record<string, HTMLInputElement | null>>({});
   const priceInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -94,12 +93,6 @@ export function OrderForm({
     );
   }
 
-  useEffect(() => {
-    if (!justSaved) return;
-    const timer = setTimeout(() => setJustSaved(false), 3000);
-    return () => clearTimeout(timer);
-  }, [justSaved]);
-
   const total = Object.values(selections).reduce(
     (sum, { quantity, price }) => sum + quantity * price,
     0
@@ -108,17 +101,20 @@ export function OrderForm({
   return (
     <form suppressHydrationWarning
       action={async (formData) => {
-        formData.set(
-          "customerName",
-          `${building.trim().charAt(0).toUpperCase()}-${unitNumber.trim()}`
+        const customerName = `${building.trim().charAt(0).toUpperCase()}-${unitNumber.trim()}`;
+        formData.set("customerName", customerName);
+        const ok = await withToast(
+          toast,
+          () => action(formData),
+          `Order added for ${customerName}.`
         );
-        await action(formData);
-        setBuilding("Amina");
-        setUnitNumber("");
-        setSelections({});
-        setSaleChecked({});
-        setSearch("");
-        setJustSaved(true);
+        if (ok) {
+          setBuilding("Amina");
+          setUnitNumber("");
+          setSelections({});
+          setSaleChecked({});
+          setSearch("");
+        }
       }}
       className="mt-4 space-y-4"
     >
@@ -307,9 +303,6 @@ export function OrderForm({
         >
           Add order
         </SubmitButton>
-        {justSaved && (
-          <span className="text-sm text-emerald-700">✓ Added</span>
-        )}
       </div>
     </form>
   );

@@ -5,6 +5,7 @@ import { Combobox } from "@/components/combobox";
 import { CollapsibleSection } from "@/components/collapsible-section";
 import { SubmitButton } from "@/components/submit-button";
 import { utcDateKey } from "@/lib/date";
+import { useToast, withToast } from "@/components/toast";
 
 type MenuItem = { id: string; name: string };
 
@@ -22,6 +23,7 @@ export function DailyMenuManager({
   date: string;
 }) {
   const [name, setName] = useState("");
+  const toast = useToast();
 
   const todaysMenu = menuByDate[utcDateKey(new Date(date))] ?? [];
 
@@ -48,9 +50,14 @@ export function DailyMenuManager({
       }
     >
       <form suppressHydrationWarning
-        action={(formData) => {
-          addAction(formData);
-          setName("");
+        action={async (formData) => {
+          const dishName = name;
+          const ok = await withToast(
+            toast,
+            () => addAction(formData),
+            `"${dishName}" added to the menu.`
+          );
+          if (ok) setName("");
         }}
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
@@ -91,7 +98,16 @@ export function DailyMenuManager({
                 className="flex items-center gap-2 rounded-full bg-brand-cream px-3 py-1 text-sm text-brand-brown"
               >
                 {item.name}
-                <form suppressHydrationWarning action={removeAction.bind(null, item.dailyMenuId)}>
+                <form
+                  suppressHydrationWarning
+                  action={async () => {
+                    await withToast(
+                      toast,
+                      () => removeAction(item.dailyMenuId),
+                      `"${item.name}" removed from the menu.`
+                    );
+                  }}
+                >
                   <SubmitButton
                     spinnerClassName="h-2.5 w-2.5"
                     aria-label={`Remove ${item.name} from this day's menu`}

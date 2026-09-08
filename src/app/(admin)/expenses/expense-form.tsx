@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { useToast, withToast } from "@/components/toast";
 
 export type EditingExpense = {
   id: string;
@@ -26,16 +27,7 @@ export function ExpenseForm({
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(defaultDate);
-  // Brief confirmation after a successful submit — otherwise the form gives
-  // no visible sign it worked, making it easy to think a click didn't
-  // register and submit the same expense twice.
-  const [justSaved, setJustSaved] = useState(false);
-
-  useEffect(() => {
-    if (!justSaved) return;
-    const timer = setTimeout(() => setJustSaved(false), 3000);
-    return () => clearTimeout(timer);
-  }, [justSaved]);
+  const toast = useToast();
 
   // Seeded with null (not `editingExpense`) so this still syncs correctly
   // the first time this component renders, since it only mounts once its
@@ -61,9 +53,13 @@ export function ExpenseForm({
   return (
     <form suppressHydrationWarning
       action={async (formData) => {
-        await action(formData);
-        resetForm();
-        setJustSaved(true);
+        const isEdit = Boolean(id);
+        const ok = await withToast(
+          toast,
+          () => action(formData),
+          isEdit ? `"${description}" updated.` : `"${description}" added.`
+        );
+        if (ok) resetForm();
       }}
       className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
     >
@@ -137,9 +133,6 @@ export function ExpenseForm({
           >
             Cancel
           </button>
-        )}
-        {justSaved && (
-          <span className="text-sm text-emerald-700">✓ Saved</span>
         )}
       </div>
     </form>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { useToast, withToast } from "@/components/toast";
 
 export type EditingCost = {
   id: string;
@@ -41,17 +42,7 @@ export function MarketCostForm({
   // ---- Adding new costs — one or more rows from the same market trip ----
   const [rows, setRows] = useState<Row[]>([{ ...emptyRow }]);
   const [addDate, setAddDate] = useState(defaultDate);
-
-  // Brief confirmation after a successful submit — otherwise the form gives
-  // no visible sign it worked, making it easy to think a click didn't
-  // register and submit the same cost twice.
-  const [justSaved, setJustSaved] = useState(false);
-
-  useEffect(() => {
-    if (!justSaved) return;
-    const timer = setTimeout(() => setJustSaved(false), 3000);
-    return () => clearTimeout(timer);
-  }, [justSaved]);
+  const toast = useToast();
 
   // Seeded with null (not `editingCost`) so this still syncs correctly the
   // first time this component renders, since it only mounts once its
@@ -100,9 +91,12 @@ export function MarketCostForm({
     return (
       <form suppressHydrationWarning
         action={async (formData) => {
-          await action(formData);
-          resetEditForm();
-          setJustSaved(true);
+          const ok = await withToast(
+            toast,
+            () => action(formData),
+            `"${description}" updated.`
+          );
+          if (ok) resetEditForm();
         }}
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
       >
@@ -179,9 +173,6 @@ export function MarketCostForm({
           >
             Cancel
           </button>
-          {justSaved && (
-            <span className="text-sm text-emerald-700">✓ Saved</span>
-          )}
         </div>
       </form>
     );
@@ -190,9 +181,13 @@ export function MarketCostForm({
   return (
     <form suppressHydrationWarning
       action={async (formData) => {
-        await createAction(formData);
-        resetAddForm();
-        setJustSaved(true);
+        const count = rows.length;
+        const ok = await withToast(
+          toast,
+          () => createAction(formData),
+          `${count} market cost${count === 1 ? "" : "s"} added.`
+        );
+        if (ok) resetAddForm();
       }}
       className="space-y-3"
     >
@@ -290,9 +285,6 @@ export function MarketCostForm({
         >
           Add {rows.length} item{rows.length === 1 ? "" : "s"}
         </SubmitButton>
-        {justSaved && (
-          <span className="text-sm text-emerald-700">✓ Saved</span>
-        )}
       </div>
     </form>
   );

@@ -9,6 +9,7 @@ import {
 import { SubmitButton } from "@/components/submit-button";
 import { FoodItemsSection } from "./food-items-section";
 import { Pagination } from "@/components/pagination";
+import { FilterForm } from "@/components/filter-form";
 
 const PAGE_SIZE = 25;
 
@@ -68,7 +69,7 @@ export default async function FoodItemsPage({
         </p>
       </div>
 
-      <form suppressHydrationWarning className="flex flex-wrap items-end gap-3">
+      <FilterForm suppressHydrationWarning className="flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-xs font-medium text-brand-brown-light">
             Search
@@ -110,7 +111,7 @@ export default async function FoodItemsPage({
         >
           Reset
         </Link>
-      </form>
+      </FilterForm>
 
       <FoodItemsSection
         action={upsertFoodItem}

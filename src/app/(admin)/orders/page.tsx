@@ -8,7 +8,7 @@ import {
   deleteOrders,
   deleteOrderBatch,
   toggleOrderPaymentStatus,
-  toggleOrderDeliveryStatus,
+  updateOrderDeliveryStatus,
   bulkUpdatePaymentStatus,
   bulkUpdateDeliveryStatus,
   updateOrderPaymentMode,
@@ -20,6 +20,7 @@ import { OrdersDayPanel } from "./orders-day-panel";
 import { OrdersTable } from "./orders-table";
 import { SubmitButton } from "@/components/submit-button";
 import { Pagination } from "@/components/pagination";
+import { FilterForm } from "@/components/filter-form";
 
 const PAGE_SIZE = 25;
 
@@ -45,7 +46,9 @@ export default async function OrdersPage({
   const payment =
     paymentParam === "Paid" || paymentParam === "Unpaid" ? paymentParam : undefined;
   const delivery =
-    deliveryParam === "Delivered" || deliveryParam === "Pending"
+    deliveryParam === "Delivered" ||
+    deliveryParam === "For dispatch" ||
+    deliveryParam === "Pending"
       ? deliveryParam
       : undefined;
   // A customer-name search spans every day (paginated), overriding the
@@ -206,7 +209,7 @@ export default async function OrdersPage({
         defaultDate={date}
       />
 
-      <form suppressHydrationWarning className="flex flex-wrap items-end gap-3">
+      <FilterForm suppressHydrationWarning className="flex flex-wrap items-end gap-3">
         <input suppressHydrationWarning type="hidden" name="date" value={date} />
         <div>
           <label className="block text-xs font-medium text-brand-brown-light">
@@ -244,8 +247,9 @@ export default async function OrdersPage({
             className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
           >
             <option value="All">All</option>
-            <option value="Delivered">Delivered</option>
             <option value="Pending">Pending</option>
+            <option value="For dispatch">For dispatch</option>
+            <option value="Delivered">Delivered</option>
           </select>
         </div>
         <SubmitButton
@@ -260,13 +264,7 @@ export default async function OrdersPage({
         >
           Reset
         </Link>
-        <Link
-          href={`/orders/prep?date=${date}`}
-          className="rounded-md border border-brand-tan px-4 py-2 text-sm font-medium text-brand-brown hover:bg-brand-cream"
-        >
-          Print prep list
-        </Link>
-      </form>
+      </FilterForm>
       {search && (
         <p className="-mt-4 text-xs text-brand-brown-light">
           Showing results for &quot;{search}&quot; across all days — not just
@@ -287,7 +285,7 @@ export default async function OrdersPage({
           <OrdersTable
             groups={groups}
             toggleOrderPaymentStatus={toggleOrderPaymentStatus}
-            toggleOrderDeliveryStatus={toggleOrderDeliveryStatus}
+            updateOrderDeliveryStatus={updateOrderDeliveryStatus}
             updateOrderPaymentMode={updateOrderPaymentMode}
             updateOrderItem={updateOrderItem}
             addOrderItem={addOrderItem}

@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import { formatMoney, toNumber } from "@/lib/money";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { BulkDeleteBar } from "@/components/bulk-delete-bar";
 import { CollapsibleGroup } from "@/components/collapsible-group";
+import { useToast, withToast } from "@/components/toast";
 import {
   SortableHeader,
   nextSortState,
@@ -64,6 +66,7 @@ export function MarketCostsTable({
 }) {
   const [sort, setSort] = useState<SortState<SortKey>>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toast = useToast();
 
   const sortedGroups = useMemo(
     () => groups.map((group) => ({ ...group, items: sortItems(group.items, sort) })),
@@ -91,8 +94,13 @@ export function MarketCostsTable({
   }
 
   async function handleBulkDelete() {
-    await bulkDeleteAction(Array.from(selected));
-    setSelected(new Set());
+    const ids = Array.from(selected);
+    const ok = await withToast(
+      toast,
+      () => bulkDeleteAction(ids),
+      `${ids.length} market cost${ids.length === 1 ? "" : "s"} deleted.`
+    );
+    if (ok) setSelected(new Set());
   }
 
   return (
@@ -161,20 +169,33 @@ export function MarketCostsTable({
                   <button
                     type="button"
                     onClick={() => onEdit(cost)}
-                    className="text-xs font-medium text-brand-brown hover:underline"
+                    aria-label="Edit"
+                    title="Edit"
+                    className="rounded-md p-1.5 text-brand-brown hover:bg-brand-cream"
                   >
-                    Edit
+                    <Pencil className="h-4 w-4" />
                   </button>
-                  <form suppressHydrationWarning action={deleteAction.bind(null, cost.id)}>
+                  <form
+                    suppressHydrationWarning
+                    action={async () => {
+                      await withToast(
+                        toast,
+                        () => deleteAction(cost.id),
+                        `"${cost.description}" deleted.`
+                      );
+                    }}
+                  >
                     <ConfirmSubmitButton
                       spinnerClassName="h-3 w-3"
                       confirmTitle="Delete this market cost?"
                       confirmMessage={`This will permanently delete "${cost.description}". This cannot be undone.`}
                       confirmLabel="Delete"
                       danger
-                      className="text-xs font-medium text-red-600 hover:underline"
+                      aria-label="Delete"
+                      title="Delete"
+                      className="rounded-md p-1.5 text-red-600 hover:bg-red-50"
                     >
-                      Delete
+                      <Trash2 className="h-4 w-4" />
                     </ConfirmSubmitButton>
                   </form>
                 </div>

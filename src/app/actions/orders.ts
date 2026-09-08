@@ -452,22 +452,33 @@ export async function toggleOrderPaymentStatus(
   revalidatePath("/orders");
 }
 
-export async function toggleOrderDeliveryStatus(
-  groupKey: string,
-  deliveryStatus: string
-) {
+// Not exported — a "use server" file's exports must all be async functions,
+// so this can't be shared directly with the client-side <select> (which
+// keeps its own identical copy, same as PaymentModeSelect's PAYMENT_MODES).
+const DELIVERY_STATUSES = ["Pending", "For dispatch", "Delivered"] as const;
+
+// A <select> (3 states), not a toggle button like payment status above —
+// reads its fields from FormData instead of taking them as bound args, to
+// match how a <select>'s onChange submits its own form.
+export async function updateOrderDeliveryStatus(formData: FormData) {
   await requireAdmin();
+  const groupKey = String(formData.get("groupKey") ?? "");
+  const deliveryStatus = String(formData.get("deliveryStatus") ?? "Pending");
+  if (!(DELIVERY_STATUSES as readonly string[]).includes(deliveryStatus)) {
+    throw new Error("Invalid delivery status");
+  }
   await prisma.order.updateMany({
     where: groupWhere(groupKey),
     data: { deliveryStatus },
   });
   revalidatePath("/orders");
   revalidatePath("/sales");
+  revalidatePath("/dashboard");
 }
 
 // Resolves the given order ids to their batches (same "whole batch, not
 // just the checked row" semantics as toggleOrderPaymentStatus/
-// toggleOrderDeliveryStatus above) and updates every order in each one —
+// updateOrderDeliveryStatus above) and updates every order in each one —
 // lets a bulk-selected set of rows be marked paid/delivered together
 // instead of one batch at a time.
 async function batchWhereForOrderIds(orderIds: string[]) {
