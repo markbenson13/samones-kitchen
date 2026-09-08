@@ -16,6 +16,7 @@ import {
   addOrderItem,
 } from "@/app/actions/orders";
 import { addToDailyMenu, removeFromDailyMenu } from "@/app/actions/daily-menu";
+import { dailyMenuDateWindow } from "@/lib/daily-menu";
 import { OrdersDayPanel } from "./orders-day-panel";
 import { OrdersTable } from "./orders-table";
 import { SubmitButton } from "@/components/submit-button";
@@ -80,7 +81,7 @@ export default async function OrdersPage({
       orderBy: search
         ? [{ date: "desc" }, { createdAt: "desc" }, { orderGroupId: "desc" }]
         : [{ createdAt: "desc" }, { orderGroupId: "desc" }],
-      include: { foodItem: true },
+      include: { foodItem: { select: { name: true } } },
       ...(search ? { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE } : {}),
     }),
     search ? prisma.order.count({ where }) : Promise.resolve(0),
@@ -89,6 +90,7 @@ export default async function OrdersPage({
       orderBy: { name: "asc" },
     }),
     prisma.dailyMenu.findMany({
+      where: { date: dailyMenuDateWindow() },
       include: {
         foodItem: { select: { id: true, name: true, sellingPrice: true } },
       },

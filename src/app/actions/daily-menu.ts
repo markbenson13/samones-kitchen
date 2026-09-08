@@ -13,7 +13,6 @@ async function requireAdmin() {
 function revalidateMenuConsumers() {
   revalidatePath("/orders");
   revalidatePath("/sales");
-  revalidatePath("/food-items");
 }
 
 export async function addToDailyMenu(formData: FormData) {
@@ -33,10 +32,12 @@ export async function addToDailyMenu(formData: FormData) {
   let foodItem = await prisma.foodItem.findFirst({
     where: { name: { equals: name, mode: "insensitive" } },
   });
+  let isNewFoodItem = false;
   if (!foodItem) {
     foodItem = await prisma.foodItem.create({
       data: { name, costPrice: 0, sellingPrice: 0 },
     });
+    isNewFoodItem = true;
   }
 
   await prisma.dailyMenu.upsert({
@@ -46,6 +47,10 @@ export async function addToDailyMenu(formData: FormData) {
   });
 
   revalidateMenuConsumers();
+  // Only quick-creating a brand-new food item actually changes what /food-items
+  // shows — reusing an existing one (the common case) doesn't, so that page
+  // doesn't need to re-render on every menu addition.
+  if (isNewFoodItem) revalidatePath("/food-items");
 }
 
 export async function removeFromDailyMenu(id: string) {
