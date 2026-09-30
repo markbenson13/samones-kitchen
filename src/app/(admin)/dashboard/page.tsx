@@ -141,8 +141,10 @@ export default async function DashboardPage({
   );
   // Deliberately excludes expenses — net income here is the food business's
   // own margin (sales minus cost of goods), not the fuller post-overhead
-  // figure. That one lives on the Expenses page as "Available income".
+  // figure. That one is "Available income" below, same definition as the
+  // Expenses page's card of the same name.
   const netIncome = totalSales - totalCosts;
+  const availableIncome = totalSales - totalCosts - totalExpenses;
 
   const unpaidCount = unpaidAgg.count;
   const unpaidTotal = toNumber(unpaidAgg.total ?? "0");
@@ -300,7 +302,7 @@ export default async function DashboardPage({
         <h2 className="text-sm font-medium text-brand-brown">
           {formatRangeDate(fromDate)} – {formatRangeDate(toDate)}
         </h2>
-        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <StatCard label="Total sales" value={formatMoney(totalSales)} />
           <StatCard label="Total market costs" value={formatMoney(totalCosts)} />
           <StatCard label="Total expenses" value={formatMoney(totalExpenses)} />
@@ -309,6 +311,12 @@ export default async function DashboardPage({
             value={formatMoney(netIncome)}
             subtitle="Sales − market costs"
             tone={netIncome >= 0 ? "positive" : "negative"}
+          />
+          <StatCard
+            label="Available income"
+            value={formatMoney(availableIncome)}
+            subtitle="Sales − market costs − expenses"
+            tone={availableIncome >= 0 ? "positive" : "negative"}
           />
         </div>
       </div>

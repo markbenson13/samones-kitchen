@@ -10,7 +10,31 @@ import { useToast, withToast } from "@/components/toast";
 type FoodItemOption = { id: string; name: string; sellingPrice: string };
 
 const PAYMENT_MODES = ["Cash", "GCash", "Both"];
-const BUILDINGS = ["Amina", "Soraya", "Celeste", "Astra", "Kiran"];
+
+// Buildings are grouped under their tower so the customer code (tower
+// initial + building initial) is unique — Amina and Astra both start with
+// "A", so a building-initial-only code collided ("A-1234" for either).
+// Combining with the tower initial (Allegra/Amina -> "AA", Prisma/Astra ->
+// "PA") fixes that without changing the picker itself.
+const BUILDING_TOWERS: Record<string, string[]> = {
+  Prisma: ["Celeste", "Astra", "Kiran"],
+  Allegra: ["Amina", "Soraya"],
+};
+const BUILDINGS = Object.values(BUILDING_TOWERS).flat();
+const TOWER_BY_BUILDING = new Map(
+  Object.entries(BUILDING_TOWERS).flatMap(([tower, buildings]) =>
+    buildings.map((building) => [building, tower] as const)
+  )
+);
+
+function buildingCode(building: string): string {
+  const trimmed = building.trim();
+  const tower = TOWER_BY_BUILDING.get(trimmed);
+  if (tower) return `${tower.charAt(0)}${trimmed.charAt(0)}`.toUpperCase();
+  // A building typed in that isn't one of the known ones has no tower to
+  // combine with — fall back to its own first two letters.
+  return trimmed.slice(0, 2).toUpperCase();
+}
 
 export function OrderForm({
   action,
@@ -30,9 +54,10 @@ export function OrderForm({
 
   const hasMenuForDay = !!menuByDate[utcDateKey(new Date(date))];
 
-  // Customer identity is building + unit number (e.g. "A-1234") — the
-  // building's first letter is combined with the unit number on submit, so
-  // the customer doesn't have to type the letter prefix themselves.
+  // Customer identity is building + unit number (e.g. "PA-1234" for Prisma
+  // tower's Astra building) — the tower+building code is combined with the
+  // unit number on submit, so the customer doesn't have to type it
+  // themselves.
   const [building, setBuilding] = useState("Amina");
   const [unitNumber, setUnitNumber] = useState("");
   const [search, setSearch] = useState("");
@@ -101,7 +126,7 @@ export function OrderForm({
   return (
     <form suppressHydrationWarning
       action={async (formData) => {
-        const customerName = `${building.trim().charAt(0).toUpperCase()}-${unitNumber.trim()}`;
+        const customerName = `${buildingCode(building)}-${unitNumber.trim()}`;
         formData.set("customerName", customerName);
         const ok = await withToast(
           toast,
