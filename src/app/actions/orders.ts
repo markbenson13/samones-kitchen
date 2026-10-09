@@ -232,6 +232,7 @@ export async function createOrder(formData: FormData) {
   const paymentStatus = String(formData.get("paymentStatus") ?? "Unpaid");
   const deliveryStatus = String(formData.get("deliveryStatus") ?? "Pending");
   const paymentMode = String(formData.get("paymentMode") ?? "Cash");
+  const deliveryNote = String(formData.get("deliveryNote") ?? "").trim() || null;
   const dateStr = String(formData.get("date") ?? "");
 
   if (!customerName) throw new Error("Customer name / unit is required");
@@ -289,6 +290,7 @@ export async function createOrder(formData: FormData) {
       paymentStatus,
       deliveryStatus,
       paymentMode,
+      deliveryNote,
       date,
       orderGroupId,
     })),
@@ -340,8 +342,9 @@ export async function addOrderItem(formData: FormData) {
   }
 
   // Copy the batch's shared fields (customer, date, payment/delivery
-  // status, mode) from an existing row in it onto the new item, so it joins
-  // the same order rather than looking like a separate one.
+  // status, mode, delivery note) from an existing row in it onto the new
+  // item, so it joins the same order rather than looking like a separate
+  // one.
   const existing = await prisma.order.findFirst({ where: groupWhere(groupKey) });
   if (!existing) throw new Error("Order not found");
 
@@ -362,6 +365,7 @@ export async function addOrderItem(formData: FormData) {
       paymentStatus: existing.paymentStatus,
       deliveryStatus: existing.deliveryStatus,
       paymentMode: existing.paymentMode,
+      deliveryNote: existing.deliveryNote,
       date: existing.date,
       // A legacy singleton row (no orderGroupId of its own) uses its own id
       // as its group key — assigning that same value here is what actually
@@ -546,6 +550,19 @@ export async function updateOrderPaymentMode(formData: FormData) {
   await prisma.order.updateMany({
     where: groupWhere(groupKey),
     data: { paymentMode },
+  });
+  revalidatePath("/orders");
+}
+
+// Free-text delivery coordination note (e.g. "Deliver at 1pm", "Lobby
+// meetup") — whole-batch update, same as payment mode/status above.
+export async function updateOrderDeliveryNote(formData: FormData) {
+  await requireAdmin();
+  const groupKey = String(formData.get("groupKey") ?? "");
+  const deliveryNote = String(formData.get("deliveryNote") ?? "").trim() || null;
+  await prisma.order.updateMany({
+    where: groupWhere(groupKey),
+    data: { deliveryNote },
   });
   revalidatePath("/orders");
 }

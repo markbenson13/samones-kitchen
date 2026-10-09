@@ -36,6 +36,7 @@ export function OrderForm({
   // themselves.
   const [building, setBuilding] = useState("Amina");
   const [unitNumber, setUnitNumber] = useState("");
+  const [deliveryNote, setDeliveryNote] = useState("");
   const [search, setSearch] = useState("");
   const filteredOptions = useMemo(
     () =>
@@ -112,6 +113,7 @@ export function OrderForm({
         if (ok) {
           setBuilding("Amina");
           setUnitNumber("");
+          setDeliveryNote("");
           setSelections({});
           setSaleChecked({});
           setSearch("");
@@ -153,7 +155,7 @@ export function OrderForm({
           <label className="block text-xs font-medium text-brand-brown-light">
             Payment status
           </label>
-          <select
+          <select suppressHydrationWarning
             name="paymentStatus"
             defaultValue="Unpaid"
             className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
@@ -166,7 +168,7 @@ export function OrderForm({
           <label className="block text-xs font-medium text-brand-brown-light">
             Delivery status
           </label>
-          <select
+          <select suppressHydrationWarning
             name="deliveryStatus"
             defaultValue="Pending"
             className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
@@ -179,7 +181,7 @@ export function OrderForm({
           <label className="block text-xs font-medium text-brand-brown-light">
             Mode of payment
           </label>
-          <select
+          <select suppressHydrationWarning
             name="paymentMode"
             defaultValue="Cash"
             className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
@@ -190,6 +192,19 @@ export function OrderForm({
               </option>
             ))}
           </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-brand-brown-light">
+            Delivery note
+          </label>
+          <input suppressHydrationWarning
+            type="text"
+            name="deliveryNote"
+            placeholder="e.g. Deliver at 1pm, lobby meetup"
+            value={deliveryNote}
+            onChange={(e) => setDeliveryNote(e.target.value)}
+            className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
+          />
         </div>
       </div>
 

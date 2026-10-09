@@ -26,24 +26,32 @@ export default async function FoodItemsPage({
   const page = Math.max(1, Number(pageParam) || 1);
   const search = searchParam?.trim() || undefined;
   const category = categoryParam && categoryParam !== "All" ? categoryParam : undefined;
-  const where = {
-    ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}),
-    ...(category ? { category } : {}),
-  };
 
   // Unfiltered — the "Add food item" form's name/category Combobox lookups
   // (and its duplicate-name detection) need every item, not just whatever
-  // the table below is currently filtered to.
-  const [allFoodItems, tableFoodItems, tableCount] = await Promise.all([
-    prisma.foodItem.findMany({ orderBy: { name: "asc" } }),
-    prisma.foodItem.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-    }),
-    prisma.foodItem.count({ where }),
-  ]);
+  // the table below is currently filtered to. The table's own filtered,
+  // sorted, paginated view is derived from this same fetch in JS instead of
+  // two more round trips — the table's tiny (tens of items), so filtering
+  // in JS costs nothing that matters.
+  const allFoodItems = await prisma.foodItem.findMany({
+    orderBy: { name: "asc" },
+  });
+
+  const filteredFoodItems = allFoodItems.filter((item) => {
+    if (search && !item.name.toLowerCase().includes(search.toLowerCase())) {
+      return false;
+    }
+    if (category && item.category !== category) return false;
+    return true;
+  });
+  const sortedForTable = [...filteredFoodItems].sort(
+    (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+  );
+  const tableCount = sortedForTable.length;
+  const tableFoodItems = sortedForTable.slice(
+    (page - 1) * PAGE_SIZE,
+    (page - 1) * PAGE_SIZE + PAGE_SIZE
+  );
 
   const formItems = allFoodItems.map((item) => ({
     id: item.id,
@@ -86,7 +94,7 @@ export default async function FoodItemsPage({
           <label className="block text-xs font-medium text-brand-brown-light">
             Category
           </label>
-          <select
+          <select suppressHydrationWarning
             name="category"
             defaultValue={category ?? "All"}
             className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"

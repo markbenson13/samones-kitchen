@@ -8,7 +8,6 @@ import { MarketCostsTable } from "./market-costs-table";
 type CostRow = {
   id: string;
   description: string;
-  quantity: string | null;
   amount: string;
   date: string;
 };
@@ -82,7 +81,6 @@ export function MarketCostsSection({
               setEditingCost({
                 id: cost.id,
                 description: cost.description,
-                quantity: cost.quantity,
                 amount: cost.amount,
                 date: cost.date,
               });

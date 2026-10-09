@@ -66,7 +66,7 @@ export default async function SalesPage({
     ...(foodItemIdFilter ? { foodItemId: foodItemIdFilter } : {}),
   };
 
-  const [sales, salesCount, foodItems, filterableFoodItems, menuByDate] =
+  const [sales, salesCount, allFoodItemsWithSaleCount, menuByDate] =
     await Promise.all([
       prisma.sale.findMany({
         where,
@@ -76,20 +76,22 @@ export default async function SalesPage({
         take: PAGE_SIZE,
       }),
       prisma.sale.count({ where }),
+      // One fetch of every food item (the table's tiny) covers both the
+      // Record-sale form's dropdown (active only) and the filter dropdown
+      // (includes inactive/discontinued items too, so filtering sales
+      // history can still find a discontinued item's past entries) —
+      // split by isActive/sale count in JS instead of two separate queries.
       prisma.foodItem.findMany({
-        where: { isActive: true },
         orderBy: { name: "asc" },
-      }),
-      // Includes inactive/discontinued items too, unlike the Record-sale
-      // form's dropdown above — filtering sales history should still be able
-      // to find a discontinued item's past entries.
-      prisma.foodItem.findMany({
-        where: { sales: { some: {} } },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true },
+        include: { _count: { select: { sales: true } } },
       }),
       getDailyMenuByDate(),
     ]);
+
+  const foodItems = allFoodItemsWithSaleCount.filter((item) => item.isActive);
+  const filterableFoodItems = allFoodItemsWithSaleCount.filter(
+    (item) => item._count.sales > 0
+  );
 
   const totalPages = Math.max(1, Math.ceil(salesCount / PAGE_SIZE));
 
@@ -198,7 +200,7 @@ export default async function SalesPage({
           <label className="block text-xs font-medium text-brand-brown-light">
             Food item
           </label>
-          <select
+          <select suppressHydrationWarning
             name="foodItemId"
             defaultValue={foodItemIdFilter ?? "All"}
             className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
@@ -255,6 +257,7 @@ export default async function SalesPage({
               totalAmount: totalAmount.toString(),
               isSale: sale.isSale,
               foodItemName: sale.foodItem.name,
+              foodItemCategory: sale.foodItem.category,
               date: utcDateKey(sale.date),
             };
           }),

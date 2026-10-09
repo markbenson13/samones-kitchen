@@ -62,17 +62,19 @@ export default async function MarketCostsPage({
       : {}),
   };
 
-  const [marketCosts, totalCount, totalAgg] = await Promise.all([
+  const [marketCosts, totalAgg] = await Promise.all([
     prisma.marketCost.findMany({
       where,
       orderBy: { date: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
     }),
-    prisma.marketCost.count({ where }),
-    prisma.marketCost.aggregate({ where, _sum: { amount: true } }),
+    // _count and _sum together in one call instead of a separate count() +
+    // aggregate() round trip — same data, half the queries.
+    prisma.marketCost.aggregate({ where, _count: true, _sum: { amount: true } }),
   ]);
 
+  const totalCount = totalAgg._count;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const total = toNumber(totalAgg._sum.amount?.toString() ?? "0");
 
@@ -169,7 +171,6 @@ export default async function MarketCostsPage({
           items: group.items.map((cost) => ({
             id: cost.id,
             description: cost.description,
-            quantity: cost.quantity,
             amount: cost.amount.toString(),
             date: utcDateKey(cost.date),
           })),

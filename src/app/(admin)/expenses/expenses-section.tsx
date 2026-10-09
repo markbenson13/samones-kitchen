@@ -9,6 +9,7 @@ type ExpenseRow = {
   id: string;
   description: string;
   amount: string;
+  category: string;
   date: string;
 };
 
@@ -20,6 +21,7 @@ export function ExpensesSection({
   groups,
   deleteAction,
   bulkDeleteAction,
+  bulkCategoryAction,
   totalLabel,
   total,
   emptyMessage = "No expenses logged in this period.",
@@ -30,6 +32,7 @@ export function ExpensesSection({
   groups: Group[];
   deleteAction: (id: string) => void | Promise<void>;
   bulkDeleteAction: (ids: string[]) => void | Promise<void>;
+  bulkCategoryAction: (ids: string[], category: string) => void | Promise<void>;
   totalLabel: string;
   total: number;
   emptyMessage?: string;
@@ -74,6 +77,7 @@ export function ExpensesSection({
             groups={groups}
             deleteAction={deleteAction}
             bulkDeleteAction={bulkDeleteAction}
+            bulkCategoryAction={bulkCategoryAction}
             totalLabel={totalLabel}
             total={total}
             onEdit={(expense) => {
@@ -81,6 +85,7 @@ export function ExpensesSection({
                 id: expense.id,
                 description: expense.description,
                 amount: expense.amount,
+                category: expense.category,
                 date: expense.date,
               });
               setFormOpen(true);

@@ -9,8 +9,12 @@ export type DailyMenuItem = { id: string; name: string; sellingPrice: string };
 // DailyMenu row ever created, on every single Orders/Sales page load, with
 // no bound on how far that grows. A rolling window comfortably covers real
 // usage (nobody's editing a menu from years ago) while capping the worst
-// case instead of scanning the whole table forever.
-const WINDOW_DAYS_PAST = 730;
+// case instead of scanning the whole table forever. Editing an existing
+// order/sale whose own day falls outside this window still works — its
+// current food item is unioned into the picker separately (see
+// EditOrderItemRow) — so this window is just "what's convenient to pick
+// from," not a hard requirement, and can stay tight.
+const WINDOW_DAYS_PAST = 30;
 const WINDOW_DAYS_FUTURE = 60;
 
 export function dailyMenuDateWindow(): { gte: Date; lte: Date } {

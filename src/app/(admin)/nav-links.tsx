@@ -11,6 +11,7 @@ import {
   Receipt,
   Wallet,
   Package,
+  PiggyBank,
 } from "lucide-react";
 
 const NAV_LINKS = [
@@ -21,6 +22,7 @@ const NAV_LINKS = [
   { href: "/inventory", label: "Inventory", icon: Package },
   { href: "/market-costs", label: "Market Costs", icon: ShoppingBasket },
   { href: "/expenses", label: "Expenses", icon: Wallet },
+  { href: "/savings", label: "Savings", icon: PiggyBank },
 ];
 
 export function NavLink({

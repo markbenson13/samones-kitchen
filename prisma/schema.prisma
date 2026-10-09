@@ -69,11 +69,22 @@ model MarketCost {
 
 // Operating expenses (gas, packaging, transportation, etc.) — distinct from
 // MarketCost, which is specifically ingredient/supply cost of goods sold.
+model Saving {
+  id          String   @id @default(cuid())
+  date        DateTime @default(now())
+  description String
+  amount      Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+
+  @@index([date])
+}
+
 model Expense {
   id          String   @id @default(cuid())
   date        DateTime @default(now())
   description String
   amount      Decimal  @db.Decimal(10, 2)
+  category    String   @default("Other")
   createdAt   DateTime @default(now())
 
   @@index([date])
@@ -132,6 +143,10 @@ model Order {
   paymentStatus  String   @default("Unpaid")
   deliveryStatus String   @default("Pending")
   paymentMode    String
+  // Free-text delivery coordination note (e.g. "Deliver at 1pm", "Lobby
+  // meetup") — shared across the whole batch, same as paymentStatus/
+  // deliveryStatus/paymentMode above, not per line item.
+  deliveryNote   String?
   createdAt      DateTime @default(now())
 
   // Shared by every item a customer ordered in one submission, so payment/

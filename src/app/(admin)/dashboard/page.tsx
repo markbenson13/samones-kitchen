@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatMoney, toNumber } from "@/lib/money";
 import { toDateInputValue, utcDateKey, formatRangeDate } from "@/lib/date";
@@ -49,29 +50,50 @@ export default async function DashboardPage({
 
   const dateRangeWhere = { date: { gte: fromDate, lt: toDateExclusive } };
 
+  // Each query here is a separate round trip to the database, and in
+  // practice that round-trip latency doesn't shrink by firing them
+  // concurrently (measured: Promise.all isn't reliably faster than
+  // sequential against this DB) — so the lever that actually matters is
+  // cutting the *number* of queries, not just parallelizing them. Three
+  // same-shape "amount per day in range" queries (Sale/MarketCost/Expense)
+  // become one UNION ALL; the two all-time Order aggregates (unpaid,
+  // pending) become one query using FILTER instead of two.
   const [
-    sales,
-    costs,
-    expenses,
+    dailyRows,
     topItemGroups,
     rangeOrders,
-    [unpaidAgg],
-    [pendingAgg],
+    [unpaidPendingAgg],
     selectedDaySales,
     selectedDayCosts,
+    allFoodItems,
   ] = await Promise.all([
-    prisma.sale.findMany({
-      where: dateRangeWhere,
-      select: { date: true, totalAmount: true },
-    }),
-    prisma.marketCost.findMany({
-      where: dateRangeWhere,
-      select: { date: true, amount: true },
-    }),
-    prisma.expense.findMany({
-      where: dateRangeWhere,
-      select: { date: true, amount: true },
-    }),
+    // amount comes back as a Decimal instance (the pg driver adapter's
+    // NUMERIC mapping), not a plain string — toNumber() below handles that,
+    // but the type here reflects the real runtime shape so this doesn't
+    // silently drift again.
+    prisma.$queryRaw<
+      {
+        date: Date;
+        amount: Prisma.Decimal;
+        source: "sale" | "cost" | "expense" | "saving";
+      }[]
+    >`
+      SELECT date, "totalAmount" AS amount, 'sale' AS source
+      FROM "Sale"
+      WHERE date >= ${fromDate} AND date < ${toDateExclusive}
+      UNION ALL
+      SELECT date, amount, 'cost' AS source
+      FROM "MarketCost"
+      WHERE date >= ${fromDate} AND date < ${toDateExclusive}
+      UNION ALL
+      SELECT date, amount, 'expense' AS source
+      FROM "Expense"
+      WHERE date >= ${fromDate} AND date < ${toDateExclusive}
+      UNION ALL
+      SELECT date, amount, 'saving' AS source
+      FROM "Saving"
+      WHERE date >= ${fromDate} AND date < ${toDateExclusive}
+    `,
     prisma.sale.groupBy({
       by: ["foodItemId"],
       where: dateRangeWhere,
@@ -93,26 +115,24 @@ export default async function DashboardPage({
         unitPrice: true,
       },
     }),
-    // All-time, deliberately not date-scoped — "unpaid" is a current-state
-    // flag, not a period metric. An order from weeks ago is still owed
-    // today regardless of what range is selected above. A batch is
-    // orderGroupId ?? id (older rows have no orderGroupId, so are their own
-    // singleton batch) — COALESCE handles that the same way the JS
-    // `orderGroupId ?? id` dedup elsewhere in this file does, so this stays
-    // a single aggregate query instead of fetching every unpaid row ever.
-    prisma.$queryRaw<{ count: number; total: string | null }[]>`
-      SELECT COUNT(DISTINCT COALESCE("orderGroupId", id))::int AS count,
-             COALESCE(SUM(quantity * "unitPrice"), 0) AS total
+    // All-time, deliberately not date-scoped — "unpaid"/"pending" are
+    // current-state flags, not period metrics. An order from weeks ago is
+    // still owed today regardless of what range is selected above. A batch
+    // is orderGroupId ?? id (older rows have no orderGroupId, so are their
+    // own singleton batch) — COALESCE handles that the same way the JS
+    // `orderGroupId ?? id` dedup elsewhere in this file does. FILTER scopes
+    // each aggregate to its own condition within a single table scan,
+    // instead of running the unpaid and pending ("not yet delivered" —
+    // covers both Pending and the in-between "For dispatch" status) scans
+    // as two separate queries.
+    prisma.$queryRaw<
+      { unpaid_count: number; unpaid_total: Prisma.Decimal | null; pending_count: number }[]
+    >`
+      SELECT
+        COUNT(DISTINCT COALESCE("orderGroupId", id)) FILTER (WHERE "paymentStatus" = 'Unpaid')::int AS unpaid_count,
+        COALESCE(SUM(quantity * "unitPrice") FILTER (WHERE "paymentStatus" = 'Unpaid'), 0) AS unpaid_total,
+        COUNT(DISTINCT COALESCE("orderGroupId", id)) FILTER (WHERE "deliveryStatus" != 'Delivered')::int AS pending_count
       FROM "Order"
-      WHERE "paymentStatus" = ${"Unpaid"}
-    `,
-    // "Not yet delivered" — covers both Pending and the in-between "For
-    // dispatch" status, so an order doesn't just disappear from this count
-    // the moment it's sent out but hasn't arrived yet.
-    prisma.$queryRaw<{ count: number }[]>`
-      SELECT COUNT(DISTINCT COALESCE("orderGroupId", id))::int AS count
-      FROM "Order"
-      WHERE "deliveryStatus" != ${"Delivered"}
     `,
     // Scoped to selectedDay (its own filter, defaulting to today), not the
     // from/to range above — deliberately independent, same reasoning as
@@ -125,30 +145,48 @@ export default async function DashboardPage({
       where: { date: selectedDay },
       _sum: { amount: true },
     }),
+    // Fetched in full (the table's tiny) so the Top 10 food items' names
+    // below don't need a second, dependent round trip after this batch.
+    prisma.foodItem.findMany({ select: { id: true, name: true } }),
   ]);
 
-  const totalSales = sales.reduce(
-    (sum, sale) => sum + toNumber(sale.totalAmount.toString()),
-    0
-  );
-  const totalCosts = costs.reduce(
-    (sum, cost) => sum + toNumber(cost.amount.toString()),
-    0
-  );
-  const totalExpenses = expenses.reduce(
-    (sum, expense) => sum + toNumber(expense.amount.toString()),
-    0
-  );
+  let totalSales = 0;
+  let totalCosts = 0;
+  let totalExpenses = 0;
+  let totalSavings = 0;
+  const salesByDay = new Map<string, number>();
+  const costsByDay = new Map<string, number>();
+  const expensesByDay = new Map<string, number>();
+  for (const row of dailyRows) {
+    const amount = toNumber(row.amount);
+    const key = utcDateKey(row.date);
+    if (row.source === "sale") {
+      totalSales += amount;
+      salesByDay.set(key, (salesByDay.get(key) ?? 0) + amount);
+    } else if (row.source === "cost") {
+      totalCosts += amount;
+      costsByDay.set(key, (costsByDay.get(key) ?? 0) + amount);
+    } else if (row.source === "expense") {
+      totalExpenses += amount;
+      expensesByDay.set(key, (expensesByDay.get(key) ?? 0) + amount);
+    } else {
+      totalSavings += amount;
+    }
+  }
   // Deliberately excludes expenses — net income here is the food business's
   // own margin (sales minus cost of goods), not the fuller post-overhead
   // figure. That one is "Available income" below, same definition as the
   // Expenses page's card of the same name.
   const netIncome = totalSales - totalCosts;
-  const availableIncome = totalSales - totalCosts - totalExpenses;
+  // Savings are still cash that left the operating till (same reasoning as
+  // Withdrawal/Personal Use expenses), so this keeps meaning "what's left
+  // for buying ingredients, gas, etc." — see the Expenses page's card of
+  // the same name.
+  const availableIncome = totalSales - totalCosts - totalExpenses - totalSavings;
 
-  const unpaidCount = unpaidAgg.count;
-  const unpaidTotal = toNumber(unpaidAgg.total ?? "0");
-  const pendingCount = pendingAgg.count;
+  const unpaidCount = unpaidPendingAgg.unpaid_count;
+  const unpaidTotal = toNumber(unpaidPendingAgg.unpaid_total ?? "0");
+  const pendingCount = unpaidPendingAgg.pending_count;
 
   const selectedDaySalesTotal = toNumber(
     selectedDaySales._sum.totalAmount?.toString() ?? "0"
@@ -168,11 +206,7 @@ export default async function DashboardPage({
         toNumber(a._sum.totalAmount?.toString() ?? "0")
     )
     .slice(0, 10);
-  const topTenFoodItems = await prisma.foodItem.findMany({
-    where: { id: { in: topTenGroups.map((g) => g.foodItemId) } },
-    select: { id: true, name: true },
-  });
-  const nameById = new Map(topTenFoodItems.map((f) => [f.id, f.name]));
+  const nameById = new Map(allFoodItems.map((f) => [f.id, f.name]));
   const topTen = topTenGroups.map((group) => ({
     id: group.foodItemId,
     name: nameById.get(group.foodItemId) ?? "Unknown item",
@@ -216,33 +250,6 @@ export default async function DashboardPage({
       (a, b) => b.orderCount - a.orderCount || b.totalSpend - a.totalSpend
     )
     .slice(0, 10);
-
-  const salesByDay = new Map<string, number>();
-  for (const sale of sales) {
-    const key = utcDateKey(sale.date);
-    salesByDay.set(
-      key,
-      (salesByDay.get(key) ?? 0) + toNumber(sale.totalAmount.toString())
-    );
-  }
-
-  const costsByDay = new Map<string, number>();
-  for (const cost of costs) {
-    const key = utcDateKey(cost.date);
-    costsByDay.set(
-      key,
-      (costsByDay.get(key) ?? 0) + toNumber(cost.amount.toString())
-    );
-  }
-
-  const expensesByDay = new Map<string, number>();
-  for (const expense of expenses) {
-    const key = utcDateKey(expense.date);
-    expensesByDay.set(
-      key,
-      (expensesByDay.get(key) ?? 0) + toNumber(expense.amount.toString())
-    );
-  }
 
   const chartData = Array.from({ length: dayCount }, (_, i) => {
     const d = new Date(fromDate);
@@ -313,10 +320,15 @@ export default async function DashboardPage({
         <h2 className="text-sm font-medium text-brand-brown">
           {formatRangeDate(fromDate)} – {formatRangeDate(toDate)}
         </h2>
-        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
           <StatCard label="Total sales" value={formatMoney(totalSales)} />
           <StatCard label="Total market costs" value={formatMoney(totalCosts)} />
           <StatCard label="Total expenses" value={formatMoney(totalExpenses)} />
+          <StatCard
+            label="Savings"
+            value={formatMoney(totalSavings)}
+            subtitle="See the Savings page"
+          />
           <StatCard
             label="Net income"
             value={formatMoney(netIncome)}
@@ -326,7 +338,7 @@ export default async function DashboardPage({
           <StatCard
             label="Available income"
             value={formatMoney(availableIncome)}
-            subtitle="Sales − market costs − expenses"
+            subtitle="Sales − market costs − expenses − savings"
             tone={availableIncome >= 0 ? "positive" : "negative"}
           />
         </div>

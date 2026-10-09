@@ -99,7 +99,7 @@ function EditOrderItemRow({
             <label className="block text-xs font-medium text-brand-brown-light">
               Food item
             </label>
-            <select
+            <select suppressHydrationWarning
               name="foodItemId"
               required
               value={foodItemId}
@@ -240,7 +240,7 @@ function AddItemToOrderRow({
             <label className="block text-xs font-medium text-brand-brown-light">
               Food item
             </label>
-            <select
+            <select suppressHydrationWarning
               name="foodItemId"
               required
               value={foodItemId}
@@ -313,17 +313,22 @@ function AddItemToOrderRow({
 function EditCustomerRow({
   groupKey,
   customerName,
+  deliveryNote,
   onCancel,
   updateOrderCustomerName,
+  updateOrderDeliveryNote,
 }: {
   groupKey: string;
   customerName: string;
+  deliveryNote: string | null;
   onCancel: () => void;
   updateOrderCustomerName: (formData: FormData) => void | Promise<void>;
+  updateOrderDeliveryNote: (formData: FormData) => void | Promise<void>;
 }) {
   const parsed = useMemo(() => parseCustomerName(customerName), [customerName]);
   const [building, setBuilding] = useState(parsed.building);
   const [unitNumber, setUnitNumber] = useState(parsed.unitNumber);
+  const [note, setNote] = useState(deliveryNote ?? "");
   const toast = useToast();
 
   return (
@@ -336,7 +341,10 @@ function EditCustomerRow({
             formData.set("customerName", nextCustomerName);
             const ok = await withToast(
               toast,
-              () => updateOrderCustomerName(formData),
+              async () => {
+                await updateOrderCustomerName(formData);
+                await updateOrderDeliveryNote(formData);
+              },
               `Updated to ${nextCustomerName}.`
             );
             if (ok) onCancel();
@@ -370,6 +378,19 @@ function EditCustomerRow({
               className="mt-1 w-32 rounded-md border border-brand-tan px-3 py-2 text-sm"
             />
           </div>
+          <div>
+            <label className="block text-xs font-medium text-brand-brown-light">
+              Delivery note
+            </label>
+            <input suppressHydrationWarning
+              type="text"
+              name="deliveryNote"
+              placeholder="e.g. Deliver at 1pm, lobby meetup"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="mt-1 w-56 rounded-md border border-brand-tan px-3 py-2 text-sm"
+            />
+          </div>
           <SubmitButton
             spinnerClassName="h-3 w-3"
             className="rounded-md bg-brand-red px-3 py-2 text-xs font-medium text-white hover:bg-brand-red-dark"
@@ -395,6 +416,7 @@ type Batch = {
   paymentStatus: string;
   deliveryStatus: string;
   paymentMode: string;
+  deliveryNote: string | null;
   totalAmount: number;
   items: OrderItemRow[];
 };
@@ -402,7 +424,6 @@ type Batch = {
 type Group = {
   key: string;
   label: string;
-  subtotal: number;
   batches: Batch[];
 };
 
@@ -438,6 +459,7 @@ export function OrdersTable({
   updateOrderDeliveryStatus,
   updateOrderPaymentMode,
   updateOrderCustomerName,
+  updateOrderDeliveryNote,
   updateOrderItem,
   addOrderItem,
   menuByDate,
@@ -456,6 +478,7 @@ export function OrdersTable({
   updateOrderDeliveryStatus: (formData: FormData) => void | Promise<void>;
   updateOrderPaymentMode: (formData: FormData) => void | Promise<void>;
   updateOrderCustomerName: (formData: FormData) => void | Promise<void>;
+  updateOrderDeliveryNote: (formData: FormData) => void | Promise<void>;
   updateOrderItem: (formData: FormData) => void | Promise<void>;
   addOrderItem: (formData: FormData) => void | Promise<void>;
   menuByDate: Record<string, FoodItemOption[]>;
@@ -635,9 +658,16 @@ export function OrdersTable({
       {sortedGroups.map((group) => (
         <CollapsibleGroup
           key={group.key}
-          label={group.label}
+          label={
+            <>
+              {group.label}
+              <span className="ml-2 text-xs font-normal text-brand-brown-light">
+                {group.batches.length} unit{group.batches.length === 1 ? "" : "s"}
+              </span>
+            </>
+          }
           labelColSpan={3}
-          subtotal={group.subtotal}
+          subtotal={null}
           trailingColSpan={5}
         >
           {group.batches.map((batch) => (
@@ -661,6 +691,11 @@ export function OrdersTable({
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                   </span>
+                  {batch.deliveryNote && (
+                    <span className="ml-2 text-xs font-normal italic text-brand-brown-light">
+                      Note: {batch.deliveryNote}
+                    </span>
+                  )}
                   {batch.items.length > 1 && (
                     <span className="ml-2 text-xs font-normal text-brand-brown-light">
                       {batch.items.length} items
@@ -760,8 +795,10 @@ export function OrdersTable({
                 <EditCustomerRow
                   groupKey={batch.key}
                   customerName={batch.customerName}
+                  deliveryNote={batch.deliveryNote}
                   onCancel={() => setEditCustomerOpenKey(null)}
                   updateOrderCustomerName={updateOrderCustomerName}
+                  updateOrderDeliveryNote={updateOrderDeliveryNote}
                 />
               )}
               {addItemOpenKey === batch.key && (

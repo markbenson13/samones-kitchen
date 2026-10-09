@@ -7,6 +7,7 @@ import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { BulkDeleteBar } from "@/components/bulk-delete-bar";
 import { CollapsibleGroup } from "@/components/collapsible-group";
 import { useToast, withToast } from "@/components/toast";
+import { categoryRank } from "@/lib/menu-order";
 import {
   SortableHeader,
   nextSortState,
@@ -24,6 +25,7 @@ type SaleRow = {
   totalAmount: string;
   isSale: boolean;
   foodItemName: string;
+  foodItemCategory: string | null;
   date: string;
 };
 
@@ -43,7 +45,17 @@ type SortKey =
   | "total";
 
 function sortItems(items: SaleRow[], sort: SortState<SortKey>) {
-  if (!sort) return items;
+  if (!sort) {
+    // Default order: Main Dishes, then Soups, then Sides, then Desserts —
+    // not whatever order the rows happened to be created/fetched in.
+    return [...items].sort((a, b) => {
+      const rankDiff =
+        categoryRank(a.foodItemCategory) - categoryRank(b.foodItemCategory);
+      return rankDiff !== 0
+        ? rankDiff
+        : a.foodItemName.localeCompare(b.foodItemName);
+    });
+  }
   const { key, dir } = sort;
   const sign = dir === "asc" ? 1 : -1;
   return [...items].sort((a, b) => {

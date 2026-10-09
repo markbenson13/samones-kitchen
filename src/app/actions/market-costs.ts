@@ -15,7 +15,6 @@ export async function upsertMarketCost(formData: FormData) {
 
   const id = String(formData.get("id") ?? "").trim() || null;
   const description = String(formData.get("description") ?? "").trim();
-  const quantity = String(formData.get("quantity") ?? "").trim() || null;
   const amount = Number(formData.get("amount"));
   const dateStr = String(formData.get("date") ?? "");
 
@@ -23,7 +22,7 @@ export async function upsertMarketCost(formData: FormData) {
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("Invalid amount");
 
   const date = parseDateInput(dateStr);
-  const data = { description, quantity, amount, date };
+  const data = { description, amount, date };
 
   if (id) {
     await prisma.marketCost.update({ where: { id }, data });
@@ -45,19 +44,17 @@ export async function createMarketCosts(formData: FormData) {
   const date = parseDateInput(dateStr);
   const rowCount = Number(formData.get("rowCount") ?? "0");
 
-  const items: { description: string; quantity: string | null; amount: number }[] =
-    [];
+  const items: { description: string; amount: number }[] = [];
   for (let i = 0; i < rowCount; i++) {
     const description = String(formData.get(`description_${i}`) ?? "").trim();
     // A blank trailing row (e.g. the admin added one more slot than they
     // filled in) is silently skipped rather than failing the whole batch.
     if (!description) continue;
-    const quantity = String(formData.get(`quantity_${i}`) ?? "").trim() || null;
     const amount = Number(formData.get(`amount_${i}`));
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new Error(`Invalid amount for "${description}"`);
     }
-    items.push({ description, quantity, amount });
+    items.push({ description, amount });
   }
   if (items.length === 0) throw new Error("Add at least one item");
 

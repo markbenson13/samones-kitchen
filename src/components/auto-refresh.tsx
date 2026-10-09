@@ -1,9 +1,17 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const POLL_INTERVAL_MS = 15000;
+
+// Dashboard's own query is the heaviest page in the app by far (nine
+// queries including two all-time COUNT DISTINCT scans over every Order,
+// plus summing a date range's worth of Sale/MarketCost/Expense rows in JS)
+// — repeating all of that every 15s for a tab just sitting open adds up to
+// real, wasted DB load. The other admin pages are cheap enough that polling
+// them is fine.
+const SKIP_INTERVAL_PATHS = ["/dashboard"];
 
 // Periodically re-fetches the current page's server data so a change made
 // on another device (or by another admin) shows up here without a manual
@@ -12,6 +20,7 @@ const POLL_INTERVAL_MS = 15000;
 // input, etc.), so this doesn't disrupt whatever's being worked on.
 export function AutoRefresh() {
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     function refreshIfVisible() {
@@ -21,18 +30,25 @@ export function AutoRefresh() {
         router.refresh();
       }
     }
-    const interval = setInterval(refreshIfVisible, POLL_INTERVAL_MS);
+    const skipInterval = SKIP_INTERVAL_PATHS.some(
+      (path) => pathname === path || pathname?.startsWith(`${path}/`)
+    );
+    const interval = skipInterval
+      ? null
+      : setInterval(refreshIfVisible, POLL_INTERVAL_MS);
     // Catch up immediately on regaining focus/visibility instead of waiting
     // for the next tick — that's exactly when the view is most likely
-    // stale (the admin just switched back after working elsewhere).
+    // stale (the admin just switched back after working elsewhere). Kept
+    // even on Dashboard: a one-off refresh on return is cheap, it's the
+    // repeating interval that isn't.
     document.addEventListener("visibilitychange", refreshIfVisible);
     window.addEventListener("focus", refreshIfVisible);
     return () => {
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
       document.removeEventListener("visibilitychange", refreshIfVisible);
       window.removeEventListener("focus", refreshIfVisible);
     };
-  }, [router]);
+  }, [router, pathname]);
 
   return null;
 }

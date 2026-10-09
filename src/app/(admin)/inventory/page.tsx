@@ -5,21 +5,24 @@ import {
   removeFromInventory,
   restockInventory,
   sellFromInventory,
+  setInventoryStock,
 } from "@/app/actions/inventory";
 import { InventorySection } from "./inventory-section";
 
 export default async function InventoryPage() {
-  const [inventory, untracked] = await Promise.all([
-    prisma.inventory.findMany({
-      include: { foodItem: { select: { name: true, sellingPrice: true } } },
-      orderBy: { foodItem: { name: "asc" } },
-    }),
-    prisma.foodItem.findMany({
-      where: { isActive: true, inventory: null },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-  ]);
+  // One fetch of every food item with its (possibly absent) inventory row
+  // covers both lists below — tracked items regardless of active status
+  // (a discontinued item's leftover stock should still be manageable here),
+  // and untracked-but-active items as restock candidates — instead of two
+  // separate queries.
+  const allFoodItems = await prisma.foodItem.findMany({
+    orderBy: { name: "asc" },
+    include: { inventory: true },
+  });
+  const inventory = allFoodItems.filter((item) => item.inventory);
+  const untracked = allFoodItems.filter(
+    (item) => !item.inventory && item.isActive
+  );
 
   return (
     <div className="space-y-8">
@@ -39,12 +42,13 @@ export default async function InventoryPage() {
         removeAction={removeFromInventory}
         restockAction={restockInventory}
         sellAction={sellFromInventory}
-        untracked={untracked}
-        items={inventory.map((row) => ({
-          id: row.id,
-          name: row.foodItem.name,
-          sellingPrice: toNumber(row.foodItem.sellingPrice.toString()),
-          stock: row.stock,
+        setStockAction={setInventoryStock}
+        untracked={untracked.map((item) => ({ id: item.id, name: item.name }))}
+        items={inventory.map((item) => ({
+          id: item.inventory!.id,
+          name: item.name,
+          sellingPrice: toNumber(item.sellingPrice.toString()),
+          stock: item.inventory!.stock,
         }))}
       />
     </div>

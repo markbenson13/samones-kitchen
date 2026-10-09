@@ -56,13 +56,16 @@ export async function addToDailyMenu(formData: FormData) {
 const DEFAULT_MENU_ITEM_NAME = "Rice";
 
 // Seeds "Rice" onto a day's menu the first time that day is touched, so the
-// admin doesn't have to re-add it by hand every single day — only runs when
-// the day has no menu at all yet, so deliberately removing Rice for one day
-// sticks (this doesn't re-add it behind their back on a later visit).
+// admin doesn't have to re-add it by hand every single day. Only called by
+// the Orders page, and only once its own already-fetched DailyMenu window
+// shows nothing for that day yet — deliberately not re-checking here, so a
+// day that already has a menu (the common case after day one) costs zero
+// extra round trips. Deliberately removing Rice for one day sticks (this is
+// never called again for a day with anything already on its menu). Returns
+// the created row so the caller can reflect it immediately without a second
+// fetch.
 export async function ensureDefaultMenuForDate(date: Date) {
   await requireAdmin();
-  const hasMenu = await prisma.dailyMenu.findFirst({ where: { date } });
-  if (hasMenu) return;
 
   let foodItem = await prisma.foodItem.findFirst({
     where: { name: { equals: DEFAULT_MENU_ITEM_NAME, mode: "insensitive" } },
@@ -73,11 +76,21 @@ export async function ensureDefaultMenuForDate(date: Date) {
     });
   }
 
-  await prisma.dailyMenu.upsert({
+  const entry = await prisma.dailyMenu.upsert({
     where: { date_foodItemId: { date, foodItemId: foodItem.id } },
     create: { date, foodItemId: foodItem.id },
     update: {},
   });
+
+  return {
+    dailyMenuId: entry.id,
+    foodItem: {
+      id: foodItem.id,
+      name: foodItem.name,
+      sellingPrice: foodItem.sellingPrice.toString(),
+      category: foodItem.category,
+    },
+  };
 }
 
 export async function removeFromDailyMenu(id: string) {

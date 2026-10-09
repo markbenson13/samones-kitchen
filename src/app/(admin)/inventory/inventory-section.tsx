@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -54,6 +54,88 @@ function RestockForm({
   );
 }
 
+// A direct correction to the stock number — e.g. a unit taken for
+// personal/staff use rather than sold — with no Sale/revenue effect, unlike
+// SellForm below.
+function StockCell({
+  id,
+  stock,
+  action,
+}: {
+  id: string;
+  stock: number;
+  action: (formData: FormData) => void | Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState<string | null>(null);
+  const toast = useToast();
+
+  if (!editing) {
+    return (
+      <span className="flex items-center gap-2">
+        <span
+          className={`font-semibold ${
+            stock < 0
+              ? "text-red-600"
+              : stock === 0
+                ? "text-brand-brown-light"
+                : "text-brand-brown"
+          }`}
+        >
+          {stock}
+        </span>
+        <button
+          type="button"
+          aria-label="Edit stock"
+          title="Edit stock"
+          onClick={() => {
+            setValue(String(stock));
+            setEditing(true);
+          }}
+          className="text-brand-brown-light hover:text-brand-brown"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <form suppressHydrationWarning
+      action={async (formData) => {
+        const ok = await withToast(toast, () => action(formData), "Stock updated.");
+        if (ok) setEditing(false);
+      }}
+      className="flex items-center gap-1.5"
+    >
+      <input suppressHydrationWarning type="hidden" name="id" value={id} />
+      <input suppressHydrationWarning
+        type="number"
+        name="stock"
+        min="0"
+        step="1"
+        value={value ?? String(stock)}
+        onChange={(e) => setValue(e.target.value)}
+        autoFocus
+        className="w-16 rounded-md border border-brand-tan px-2 py-1 text-sm"
+      />
+      <SubmitButton
+        spinnerClassName="h-3 w-3"
+        className="rounded-md border border-brand-tan px-2 py-1 text-xs font-medium text-brand-brown hover:bg-brand-cream"
+      >
+        Save
+      </SubmitButton>
+      <button
+        type="button"
+        onClick={() => setEditing(false)}
+        className="px-1 text-xs text-brand-brown-light hover:text-brand-brown"
+      >
+        Cancel
+      </button>
+    </form>
+  );
+}
+
 function SellForm({
   id,
   action,
@@ -99,6 +181,7 @@ export function InventorySection({
   removeAction,
   restockAction,
   sellAction,
+  setStockAction,
 }: {
   items: InventoryItem[];
   untracked: UntrackedFoodItem[];
@@ -106,6 +189,7 @@ export function InventorySection({
   removeAction: (id: string) => void | Promise<void>;
   restockAction: (formData: FormData) => void | Promise<void>;
   sellAction: (formData: FormData) => void | Promise<void>;
+  setStockAction: (formData: FormData) => void | Promise<void>;
 }) {
   const [foodItemId, setFoodItemId] = useState(untracked[0]?.id ?? "");
   const [initialStock, setInitialStock] = useState("0");
@@ -133,7 +217,7 @@ export function InventorySection({
               <label className="block text-xs font-medium text-brand-brown-light">
                 Food item
               </label>
-              <select
+              <select suppressHydrationWarning
                 name="foodItemId"
                 value={foodItemId}
                 onChange={(e) => setFoodItemId(e.target.value)}
@@ -196,16 +280,12 @@ export function InventorySection({
                   <td className="px-4 py-3 text-brand-brown-light">
                     {formatMoney(item.sellingPrice)}
                   </td>
-                  <td
-                    className={`px-4 py-3 font-semibold ${
-                      item.stock < 0
-                        ? "text-red-600"
-                        : item.stock === 0
-                          ? "text-brand-brown-light"
-                          : "text-brand-brown"
-                    }`}
-                  >
-                    {item.stock}
+                  <td className="px-4 py-3">
+                    <StockCell
+                      id={item.id}
+                      stock={item.stock}
+                      action={setStockAction}
+                    />
                   </td>
                   <td className="px-4 py-3">
                     <RestockForm id={item.id} action={restockAction} />

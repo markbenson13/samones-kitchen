@@ -36,7 +36,7 @@ export function IncomeChart({ data }: { data: ChartPoint[] }) {
   return (
     <div className="flex h-full flex-col">
       <label className="mb-2 flex items-center gap-2 self-end text-xs font-medium text-brand-brown-light">
-        <input
+        <input suppressHydrationWarning
           type="checkbox"
           checked={showExpenses}
           onChange={(e) => setShowExpenses(e.target.checked)}

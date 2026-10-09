@@ -11,7 +11,7 @@ export function CollapsibleGroup({
   children,
   defaultOpen = true,
 }: {
-  label: string;
+  label: ReactNode;
   labelColSpan: number;
   subtotal: ReactNode;
   trailingColSpan: number;

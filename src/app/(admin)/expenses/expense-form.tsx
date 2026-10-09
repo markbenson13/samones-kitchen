@@ -4,11 +4,13 @@ import { useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { useToast, withToast } from "@/components/toast";
+import { EXPENSE_CATEGORIES } from "@/lib/expense-categories";
 
 export type EditingExpense = {
   id: string;
   description: string;
   amount: string;
+  category: string;
   date: string;
 };
 
@@ -26,6 +28,7 @@ export function ExpenseForm({
   const [id, setId] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0]);
   const [date, setDate] = useState(defaultDate);
   const toast = useToast();
 
@@ -39,6 +42,7 @@ export function ExpenseForm({
     setId(editingExpense.id);
     setDescription(editingExpense.description);
     setAmount(editingExpense.amount);
+    setCategory(editingExpense.category);
     setDate(editingExpense.date);
   }
 
@@ -46,6 +50,7 @@ export function ExpenseForm({
     setId("");
     setDescription("");
     setAmount("");
+    setCategory(EXPENSE_CATEGORIES[0]);
     setDate(defaultDate);
     onCancelEdit?.();
   }
@@ -104,6 +109,23 @@ export function ExpenseForm({
           onChange={(e) => setDate(e.target.value)}
           className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
         />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-brand-brown-light">
+          Category
+        </label>
+        <select suppressHydrationWarning
+          name="category"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
+        >
+          {EXPENSE_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="flex items-end gap-2 lg:col-span-4">

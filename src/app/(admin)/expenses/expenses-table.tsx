@@ -3,7 +3,9 @@
 import { useMemo, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { formatMoney, toNumber } from "@/lib/money";
+import { EXPENSE_CATEGORIES } from "@/lib/expense-categories";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { SubmitButton } from "@/components/submit-button";
 import { BulkDeleteBar } from "@/components/bulk-delete-bar";
 import { CollapsibleGroup } from "@/components/collapsible-group";
 import { useToast, withToast } from "@/components/toast";
@@ -18,6 +20,7 @@ type ExpenseRow = {
   id: string;
   description: string;
   amount: string;
+  category: string;
   date: string;
 };
 
@@ -28,7 +31,7 @@ type Group = {
   subtotal: number;
 };
 
-type SortKey = "description" | "amount";
+type SortKey = "description" | "amount" | "category";
 
 function sortItems(items: ExpenseRow[], sort: SortState<SortKey>) {
   if (!sort) return items;
@@ -42,6 +45,8 @@ function sortItems(items: ExpenseRow[], sort: SortState<SortKey>) {
         );
       case "amount":
         return sign * compareValues(toNumber(a.amount), toNumber(b.amount));
+      case "category":
+        return sign * compareValues(a.category.toLowerCase(), b.category.toLowerCase());
     }
   });
 }
@@ -50,6 +55,7 @@ export function ExpensesTable({
   groups,
   deleteAction,
   bulkDeleteAction,
+  bulkCategoryAction,
   onEdit,
   totalLabel,
   total,
@@ -57,12 +63,14 @@ export function ExpensesTable({
   groups: Group[];
   deleteAction: (id: string) => void | Promise<void>;
   bulkDeleteAction: (ids: string[]) => void | Promise<void>;
+  bulkCategoryAction: (ids: string[], category: string) => void | Promise<void>;
   onEdit: (expense: ExpenseRow) => void;
   totalLabel: string;
   total: number;
 }) {
   const [sort, setSort] = useState<SortState<SortKey>>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkCategory, setBulkCategory] = useState<string>(EXPENSE_CATEGORIES[0]);
   const toast = useToast();
 
   const sortedGroups = useMemo(
@@ -100,9 +108,50 @@ export function ExpensesTable({
     if (ok) setSelected(new Set());
   }
 
+  async function handleBulkCategory() {
+    const ids = Array.from(selected);
+    const ok = await withToast(
+      toast,
+      () => bulkCategoryAction(ids, bulkCategory),
+      `${ids.length} expense${ids.length === 1 ? "" : "s"} set to "${bulkCategory}".`
+    );
+    if (ok) setSelected(new Set());
+  }
+
   return (
     <>
-      <BulkDeleteBar count={selected.size} action={handleBulkDelete} />
+      <BulkDeleteBar
+        count={selected.size}
+        action={handleBulkDelete}
+        extraActions={
+          selected.size > 0 ? (
+            <form
+              suppressHydrationWarning
+              action={handleBulkCategory}
+              className="flex items-center gap-1.5"
+            >
+              <select suppressHydrationWarning
+                value={bulkCategory}
+                onChange={(e) => setBulkCategory(e.target.value)}
+                aria-label="Category to apply to selected rows"
+                className="rounded-md border border-brand-tan px-2 py-1.5 text-xs"
+              >
+                {EXPENSE_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <SubmitButton
+                spinnerClassName="h-3 w-3"
+                className="rounded-md px-3 py-1.5 text-xs font-medium text-brand-brown hover:bg-brand-cream"
+              >
+                Set category
+              </SubmitButton>
+            </form>
+          ) : null
+        }
+      />
       <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
       <thead className="bg-brand-cream text-xs uppercase text-brand-brown-light">
@@ -122,6 +171,12 @@ export function ExpensesTable({
             onSort={(key) => setSort(nextSortState(sort, key))}
           />
           <SortableHeader
+            label="Category"
+            sortKey="category"
+            currentSort={sort}
+            onSort={(key) => setSort(nextSortState(sort, key))}
+          />
+          <SortableHeader
             label="Amount"
             sortKey="amount"
             currentSort={sort}
@@ -134,7 +189,7 @@ export function ExpensesTable({
         <CollapsibleGroup
           key={group.key}
           label={group.label}
-          labelColSpan={2}
+          labelColSpan={3}
           subtotal={formatMoney(group.subtotal)}
           trailingColSpan={1}
         >
@@ -150,6 +205,9 @@ export function ExpensesTable({
               </td>
               <td className="px-4 py-3 font-medium text-brand-brown">
                 {expense.description}
+              </td>
+              <td className="px-4 py-3 text-brand-brown-light">
+                {expense.category}
               </td>
               <td className="px-4 py-3">{formatMoney(expense.amount)}</td>
               <td className="px-4 py-3 text-right">
@@ -194,7 +252,7 @@ export function ExpensesTable({
       ))}
       <tfoot className="border-t-2 border-brand-tan bg-brand-cream">
         <tr>
-          <td className="px-4 py-3 font-medium text-brand-brown" colSpan={2}>
+          <td className="px-4 py-3 font-medium text-brand-brown" colSpan={3}>
             {totalLabel}
           </td>
           <td className="px-4 py-3 font-semibold text-brand-brown">

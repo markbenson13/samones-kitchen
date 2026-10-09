@@ -17,7 +17,6 @@ import {
 type CostRow = {
   id: string;
   description: string;
-  quantity: string | null;
   amount: string;
   date: string;
 };
@@ -29,7 +28,7 @@ type Group = {
   subtotal: number;
 };
 
-type SortKey = "description" | "quantity" | "amount";
+type SortKey = "description" | "amount";
 
 function sortItems(items: CostRow[], sort: SortState<SortKey>) {
   if (!sort) return items;
@@ -41,8 +40,6 @@ function sortItems(items: CostRow[], sort: SortState<SortKey>) {
         return (
           sign * compareValues(a.description.toLowerCase(), b.description.toLowerCase())
         );
-      case "quantity":
-        return sign * compareValues(a.quantity ?? "", b.quantity ?? "");
       case "amount":
         return sign * compareValues(toNumber(a.amount), toNumber(b.amount));
     }
@@ -125,12 +122,6 @@ export function MarketCostsTable({
             onSort={(key) => setSort(nextSortState(sort, key))}
           />
           <SortableHeader
-            label="Quantity"
-            sortKey="quantity"
-            currentSort={sort}
-            onSort={(key) => setSort(nextSortState(sort, key))}
-          />
-          <SortableHeader
             label="Amount"
             sortKey="amount"
             currentSort={sort}
@@ -143,7 +134,7 @@ export function MarketCostsTable({
         <CollapsibleGroup
           key={group.key}
           label={group.label}
-          labelColSpan={3}
+          labelColSpan={2}
           subtotal={formatMoney(group.subtotal)}
           trailingColSpan={1}
         >
@@ -159,9 +150,6 @@ export function MarketCostsTable({
               </td>
               <td className="px-4 py-3 font-medium text-brand-brown">
                 {cost.description}
-              </td>
-              <td className="px-4 py-3 text-brand-brown-light">
-                {cost.quantity ?? "—"}
               </td>
               <td className="px-4 py-3">{formatMoney(cost.amount)}</td>
               <td className="px-4 py-3 text-right">
@@ -206,7 +194,7 @@ export function MarketCostsTable({
       ))}
       <tfoot className="border-t-2 border-brand-tan bg-brand-cream">
         <tr>
-          <td className="px-4 py-3 font-medium text-brand-brown" colSpan={3}>
+          <td className="px-4 py-3 font-medium text-brand-brown" colSpan={2}>
             {totalLabel}
           </td>
           <td className="px-4 py-3 font-semibold text-brand-brown">

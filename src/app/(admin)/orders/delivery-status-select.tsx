@@ -38,7 +38,7 @@ export function DeliveryStatusSelect({
           as PaymentModeSelect: an uncontrolled select could otherwise get
           silently snapped back to a stale option once the form's action
           completes and React resets fields to their own defaultValue. */}
-      <select
+      <select suppressHydrationWarning
         key={value}
         name="deliveryStatus"
         defaultValue={value}

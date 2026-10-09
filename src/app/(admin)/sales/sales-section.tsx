@@ -17,6 +17,7 @@ type SaleRow = {
   totalAmount: string;
   isSale: boolean;
   foodItemName: string;
+  foodItemCategory: string | null;
   date: string;
 };
 

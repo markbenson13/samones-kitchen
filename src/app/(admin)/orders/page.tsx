@@ -13,6 +13,7 @@ import {
   bulkUpdateDeliveryStatus,
   updateOrderPaymentMode,
   updateOrderCustomerName,
+  updateOrderDeliveryNote,
   updateOrderItem,
   addOrderItem,
 } from "@/app/actions/orders";
@@ -82,10 +83,6 @@ export default async function OrdersPage({
     ...(delivery ? { deliveryStatus: delivery } : {}),
   };
 
-  // Must land before the fetch below — it's what the dailyMenu query is
-  // about to read.
-  await ensureDefaultMenuForDate(parseDateInput(date));
-
   const [orders, ordersCount, foodItems, dailyMenuEntries] = await Promise.all([
     prisma.order.findMany({
       where,
@@ -142,6 +139,28 @@ export default async function OrdersPage({
       name: entry.foodItem.name,
     });
   }
+  // Seed "Rice" the first time this day is touched — only once the batch
+  // above has already shown there's nothing here yet, so a day that already
+  // has a menu (every subsequent visit) costs zero extra round trips. Only
+  // within the window the batch's own dailyMenu query covers; a Managing
+  // day picked far outside it (rare) just doesn't get auto-seeded.
+  const parsedManagingDate = parseDateInput(date);
+  const managingDateKey = utcDateKey(parsedManagingDate);
+  if (!menuByDate[managingDateKey]) {
+    const window = dailyMenuDateWindow();
+    if (parsedManagingDate >= window.gte && parsedManagingDate <= window.lte) {
+      const seeded = await ensureDefaultMenuForDate(parsedManagingDate);
+      menuByDate[managingDateKey] = [seeded.foodItem];
+      menuByDateForManager[managingDateKey] = [
+        {
+          dailyMenuId: seeded.dailyMenuId,
+          id: seeded.foodItem.id,
+          name: seeded.foodItem.name,
+        },
+      ];
+    }
+  }
+
   // Keeps desserts (currently filed under "Sides") from interleaving with
   // Main Dishes in the checklist — grouped by category, not just name.
   for (const key of Object.keys(menuByDate)) {
@@ -155,13 +174,13 @@ export default async function OrdersPage({
   const groups: {
     key: string;
     label: string;
-    subtotal: number;
     batches: {
       key: string;
       customerName: string;
       paymentStatus: string;
       deliveryStatus: string;
       paymentMode: string;
+      deliveryNote: string | null;
       totalAmount: number;
       items: {
         id: string;
@@ -187,11 +206,10 @@ export default async function OrdersPage({
     const dayKey = utcDateKey(order.date);
     let group = groupByDayKey.get(dayKey);
     if (!group) {
-      group = { key: dayKey, label: formatGroupDate(order.date), subtotal: 0, batches: [] };
+      group = { key: dayKey, label: formatGroupDate(order.date), batches: [] };
       groupByDayKey.set(dayKey, group);
       groups.push(group);
     }
-    group.subtotal += order.quantity;
 
     const batchKey = order.orderGroupId ?? order.id;
     let batch = batchByKey.get(batchKey);
@@ -202,6 +220,7 @@ export default async function OrdersPage({
         paymentStatus: order.paymentStatus,
         deliveryStatus: order.deliveryStatus,
         paymentMode: order.paymentMode,
+        deliveryNote: order.deliveryNote,
         totalAmount: 0,
         items: [],
       };
@@ -278,7 +297,7 @@ export default async function OrdersPage({
           <label className="block text-xs font-medium text-brand-brown-light">
             Payment
           </label>
-          <select
+          <select suppressHydrationWarning
             name="payment"
             defaultValue={payment ?? "All"}
             className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
@@ -292,7 +311,7 @@ export default async function OrdersPage({
           <label className="block text-xs font-medium text-brand-brown-light">
             Delivery
           </label>
-          <select
+          <select suppressHydrationWarning
             name="delivery"
             defaultValue={delivery ?? "All"}
             className="mt-1 rounded-md border border-brand-tan px-3 py-2 text-sm"
@@ -342,6 +361,7 @@ export default async function OrdersPage({
             updateOrderDeliveryStatus={updateOrderDeliveryStatus}
             updateOrderPaymentMode={updateOrderPaymentMode}
             updateOrderCustomerName={updateOrderCustomerName}
+            updateOrderDeliveryNote={updateOrderDeliveryNote}
             updateOrderItem={updateOrderItem}
             addOrderItem={addOrderItem}
             menuByDate={menuByDate}

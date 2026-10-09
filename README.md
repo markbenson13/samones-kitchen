@@ -10,7 +10,12 @@ An admin web app for running a home-cooked Filipino food (ulam) selling and cate
   instead of made-and-sold-fresh daily like the rest of the menu; restock when a new batch is made, and a sale
   (from here, or from a customer order) draws down the same stock and still logs onto Sales/Dashboard
 - **Market Costs** — log a market trip's ingredients/supplies, one or several items at once
-- **Expenses** — log other business costs (gas, packaging, delivery, etc.)
+- **Expenses** — log other business costs (gas, packaging, delivery, etc.), categorized (Gas/Fuel, Packaging,
+  Transportation, Supplies/Equipment, Utilities, Marketing, Withdrawal, Personal Use, Other), with batch category
+  edits across selected rows
+- **Savings** — a running ledger of money set aside out of the business (e.g. a manual contribution); still
+  subtracted from "Available income" on Expenses/Dashboard since it's cash that left the operating till, but kept
+  separate from money actually spent
 - **Food Items** — set cost price / selling price per dish, active/inactive status
 - **Dashboard** — totals and a daily chart for a date range, an independent "Right now" day snapshot (today's
   sales, net income, unpaid orders, pending deliveries), and Top 10 food items / Top customers

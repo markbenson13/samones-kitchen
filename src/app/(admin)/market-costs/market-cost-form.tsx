@@ -8,13 +8,12 @@ import { useToast, withToast } from "@/components/toast";
 export type EditingCost = {
   id: string;
   description: string;
-  quantity: string | null;
   amount: string;
   date: string;
 };
 
-type Row = { description: string; quantity: string; amount: string };
-const emptyRow: Row = { description: "", quantity: "", amount: "" };
+type Row = { description: string; amount: string };
+const emptyRow: Row = { description: "", amount: "" };
 
 export function MarketCostForm({
   action,
@@ -35,7 +34,6 @@ export function MarketCostForm({
   // ---- Editing one existing cost — unchanged single-row behavior ----
   const [id, setId] = useState("");
   const [description, setDescription] = useState("");
-  const [quantity, setQuantity] = useState("");
   const [amount, setAmount] = useState("");
   const [editDate, setEditDate] = useState(defaultDate);
 
@@ -53,7 +51,6 @@ export function MarketCostForm({
     setSyncedEditingCost(editingCost);
     setId(editingCost.id);
     setDescription(editingCost.description);
-    setQuantity(editingCost.quantity ?? "");
     setAmount(editingCost.amount);
     setEditDate(editingCost.date);
   }
@@ -61,7 +58,6 @@ export function MarketCostForm({
   function resetEditForm() {
     setId("");
     setDescription("");
-    setQuantity("");
     setAmount("");
     setEditDate(defaultDate);
     onCancelEdit?.();
@@ -98,7 +94,7 @@ export function MarketCostForm({
           );
           if (ok) resetEditForm();
         }}
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
         <input suppressHydrationWarning type="hidden" name="id" value={id} />
         <div className="lg:col-span-2">
@@ -112,19 +108,6 @@ export function MarketCostForm({
             placeholder="e.g. Chicken, vegetables"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-brand-brown-light">
-            Quantity
-          </label>
-          <input suppressHydrationWarning
-            name="quantity"
-            type="text"
-            placeholder="e.g. 2kl, 1/4"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
             className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
           />
         </div>
@@ -156,7 +139,7 @@ export function MarketCostForm({
           />
         </div>
 
-        <div className="flex items-end gap-2 lg:col-span-5">
+        <div className="flex items-end gap-2 lg:col-span-4">
           <ConfirmSubmitButton
             pendingText="Updating…"
             confirmTitle="Save changes?"
@@ -224,21 +207,6 @@ export function MarketCostForm({
                 placeholder="e.g. Chicken, vegetables"
                 value={row.description}
                 onChange={(e) => updateRow(i, "description", e.target.value)}
-                className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="w-32">
-              {i === 0 && (
-                <label className="block text-xs font-medium text-brand-brown-light">
-                  Quantity
-                </label>
-              )}
-              <input suppressHydrationWarning
-                name={`quantity_${i}`}
-                type="text"
-                placeholder="e.g. 2kl"
-                value={row.quantity}
-                onChange={(e) => updateRow(i, "quantity", e.target.value)}
                 className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
               />
             </div>

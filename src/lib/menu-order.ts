@@ -1,9 +1,13 @@
-// Keeps a food item picker list from interleaving desserts with main
-// dishes — there's no dedicated "Desserts" category yet (desserts currently
-// live under "Sides" alongside non-dessert items like Rice/vegetables), so
-// this groups by the categories that actually exist today and puts "Sides"
-// last, rather than trying to guess which individual items are desserts.
-const CATEGORY_ORDER = ["Main Dishes", "Soups", "Sides"];
+// Keeps a food item picker/listing from interleaving categories messily —
+// Main Dishes first, then Soups, then Sides, then Desserts, instead of
+// whatever order rows happen to be created/fetched in. Driven entirely by
+// the Food Item's own `category` field (editable on the Food Items page),
+// not a hardcoded list of names — a prior version special-cased a fixed set
+// of dessert item names here, which needed a code change every time a
+// dessert was added, renamed, or missed (e.g. "Mango Graham - Solo" wasn't
+// on it at first). Recategorizing an item on the Food Items page is now
+// enough to fix its sort position everywhere this is used.
+const CATEGORY_ORDER = ["Main Dishes", "Soups", "Sides", "Desserts"];
 
 export function categoryRank(category: string | null | undefined): number {
   const index = CATEGORY_ORDER.indexOf(category ?? "");

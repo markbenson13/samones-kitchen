@@ -57,6 +57,25 @@ export async function restockInventory(formData: FormData) {
   revalidateInventoryConsumers();
 }
 
+// Directly corrects the stock number — e.g. one was taken for personal/staff
+// use rather than sold — with NO Sale-table/revenue effect, unlike
+// sellFromInventory below. Use this when a unit left the stock for a reason
+// other than a sale.
+export async function setInventoryStock(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const stock = Number(formData.get("stock"));
+  if (!id) throw new Error("Missing inventory item");
+  if (!Number.isInteger(stock) || stock < 0) {
+    throw new Error("Stock must be zero or a positive whole number");
+  }
+  await prisma.inventory.update({
+    where: { id },
+    data: { stock },
+  });
+  revalidateInventoryConsumers();
+}
+
 // A walk-in/counter sale recorded directly from the Inventory page — same
 // "contributes to today's Sale row" effect a regular order would have (see
 // addRegularContribution in orders.ts), so Dashboard revenue reporting

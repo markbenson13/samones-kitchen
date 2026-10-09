@@ -33,7 +33,7 @@ export function PaymentModeSelect({
           and since it skips re-writing a controlled value it already
           believes is unchanged, an uncontrolled select could get silently
           snapped back to a stale option. Remounting sidesteps that. */}
-      <select
+      <select suppressHydrationWarning
         key={value}
         name="paymentMode"
         defaultValue={value}

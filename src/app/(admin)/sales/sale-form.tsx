@@ -140,7 +140,7 @@ export function SaleForm({
         <label className="block text-xs font-medium text-brand-brown-light">
           Food item
         </label>
-        <select
+        <select suppressHydrationWarning
           name="foodItemId"
           required
           value={foodItemId}
