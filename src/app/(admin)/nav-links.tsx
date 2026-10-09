@@ -10,6 +10,7 @@ import {
   ShoppingBasket,
   Receipt,
   Wallet,
+  Package,
 } from "lucide-react";
 
 const NAV_LINKS = [
@@ -17,6 +18,7 @@ const NAV_LINKS = [
   { href: "/food-items", label: "Food Items", icon: UtensilsCrossed },
   { href: "/orders", label: "Orders", icon: ClipboardList },
   { href: "/sales", label: "Sales", icon: Receipt },
+  { href: "/inventory", label: "Inventory", icon: Package },
   { href: "/market-costs", label: "Market Costs", icon: ShoppingBasket },
   { href: "/expenses", label: "Expenses", icon: Wallet },
 ];

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { toDateInputValue, utcDateKey, formatGroupDate } from "@/lib/date";
+import { toDateInputValue, utcDateKey, formatGroupDate, parseDateInput } from "@/lib/date";
 import { toNumber } from "@/lib/money";
 import {
   createOrder,
@@ -12,11 +12,17 @@ import {
   bulkUpdatePaymentStatus,
   bulkUpdateDeliveryStatus,
   updateOrderPaymentMode,
+  updateOrderCustomerName,
   updateOrderItem,
   addOrderItem,
 } from "@/app/actions/orders";
-import { addToDailyMenu, removeFromDailyMenu } from "@/app/actions/daily-menu";
+import {
+  addToDailyMenu,
+  removeFromDailyMenu,
+  ensureDefaultMenuForDate,
+} from "@/app/actions/daily-menu";
 import { dailyMenuDateWindow } from "@/lib/daily-menu";
+import { sortByMenuOrder, categoryRank } from "@/lib/menu-order";
 import { OrdersDayPanel } from "./orders-day-panel";
 import { OrdersTable } from "./orders-table";
 import { SubmitButton } from "@/components/submit-button";
@@ -60,14 +66,25 @@ export default async function OrdersPage({
   // Without a search, the orders table only ever shows the single day
   // selected as "Managing day" above it — a day's orders are naturally
   // bounded, so there's no need to page through unrelated older days to
-  // find them.
+  // find them. A payment/delivery filter spans every day the same way a
+  // search does — "Unpaid orders"/"Pending deliveries" on the Dashboard are
+  // all-time counts (an order from last week is still owed today regardless
+  // of what day happens to be selected here), so linking into a single-day
+  // view would silently show "0 results" for everything but today.
+  const spansAllDays = !!search || !!payment || !!delivery;
   const where = {
     ...(search
       ? { customerName: { contains: search, mode: "insensitive" as const } }
-      : { date: new Date(date) }),
+      : spansAllDays
+        ? {}
+        : { date: new Date(date) }),
     ...(payment ? { paymentStatus: payment } : {}),
     ...(delivery ? { deliveryStatus: delivery } : {}),
   };
+
+  // Must land before the fetch below — it's what the dailyMenu query is
+  // about to read.
+  await ensureDefaultMenuForDate(parseDateInput(date));
 
   const [orders, ordersCount, foodItems, dailyMenuEntries] = await Promise.all([
     prisma.order.findMany({
@@ -78,13 +95,13 @@ export default async function OrdersPage({
       // can't be the primary sort on its own. Search mode spans many days,
       // so it also sorts by date first (the single-day view doesn't need
       // to, every row already shares one date).
-      orderBy: search
+      orderBy: spansAllDays
         ? [{ date: "desc" }, { createdAt: "desc" }, { orderGroupId: "desc" }]
         : [{ createdAt: "desc" }, { orderGroupId: "desc" }],
-      include: { foodItem: { select: { name: true } } },
-      ...(search ? { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE } : {}),
+      include: { foodItem: { select: { name: true, category: true } } },
+      ...(spansAllDays ? { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE } : {}),
     }),
-    search ? prisma.order.count({ where }) : Promise.resolve(0),
+    spansAllDays ? prisma.order.count({ where }) : Promise.resolve(0),
     prisma.foodItem.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
@@ -92,7 +109,9 @@ export default async function OrdersPage({
     prisma.dailyMenu.findMany({
       where: { date: dailyMenuDateWindow() },
       include: {
-        foodItem: { select: { id: true, name: true, sellingPrice: true } },
+        foodItem: {
+          select: { id: true, name: true, sellingPrice: true, category: true },
+        },
       },
     }),
   ]);
@@ -103,7 +122,7 @@ export default async function OrdersPage({
   // decoupled from Sale/MarketCost history.
   const menuByDate: Record<
     string,
-    { id: string; name: string; sellingPrice: string }[]
+    { id: string; name: string; sellingPrice: string; category: string | null }[]
   > = {};
   const menuByDateForManager: Record<
     string,
@@ -115,6 +134,7 @@ export default async function OrdersPage({
       id: entry.foodItem.id,
       name: entry.foodItem.name,
       sellingPrice: entry.foodItem.sellingPrice.toString(),
+      category: entry.foodItem.category,
     });
     (menuByDateForManager[key] ??= []).push({
       dailyMenuId: entry.id,
@@ -122,6 +142,12 @@ export default async function OrdersPage({
       name: entry.foodItem.name,
     });
   }
+  // Keeps desserts (currently filed under "Sides") from interleaving with
+  // Main Dishes in the checklist — grouped by category, not just name.
+  for (const key of Object.keys(menuByDate)) {
+    menuByDate[key] = sortByMenuOrder(menuByDate[key]);
+  }
+  const sortedFoodItems = sortByMenuOrder(foodItems);
 
   // Within a day, an order placed as multiple items shares one orderGroupId
   // (older rows have none, so they're their own singleton "batch") — so
@@ -141,6 +167,7 @@ export default async function OrdersPage({
         id: string;
         foodItemId: string;
         foodItemName: string;
+        foodItemCategory: string | null;
         quantity: number;
         unitPrice: number;
         totalAmount: number;
@@ -148,18 +175,27 @@ export default async function OrdersPage({
       }[];
     }[];
   }[] = [];
+  // Keyed lookups, not "is this the same as the previous row" — rows sharing
+  // a dayKey/batchKey aren't guaranteed contiguous in the sorted list.
+  // Adding an item to an existing order (addOrderItem) creates its row with
+  // a fresh createdAt, which sorts to the top ahead of its older siblings —
+  // relying on contiguity split it into a second, detached row instead of
+  // joining the original one.
+  const groupByDayKey = new Map<string, (typeof groups)[number]>();
+  const batchByKey = new Map<string, (typeof groups)[number]["batches"][number]>();
   for (const order of orders) {
     const dayKey = utcDateKey(order.date);
-    let group = groups[groups.length - 1];
-    if (!group || group.key !== dayKey) {
+    let group = groupByDayKey.get(dayKey);
+    if (!group) {
       group = { key: dayKey, label: formatGroupDate(order.date), subtotal: 0, batches: [] };
+      groupByDayKey.set(dayKey, group);
       groups.push(group);
     }
     group.subtotal += order.quantity;
 
     const batchKey = order.orderGroupId ?? order.id;
-    let batch = group.batches[group.batches.length - 1];
-    if (!batch || batch.key !== batchKey) {
+    let batch = batchByKey.get(batchKey);
+    if (!batch) {
       batch = {
         key: batchKey,
         customerName: order.customerName,
@@ -169,6 +205,7 @@ export default async function OrdersPage({
         totalAmount: 0,
         items: [],
       };
+      batchByKey.set(batchKey, batch);
       group.batches.push(batch);
     }
     // Uses the price snapshotted on the order itself (as of when it was
@@ -180,11 +217,23 @@ export default async function OrdersPage({
       id: order.id,
       foodItemId: order.foodItemId,
       foodItemName: order.foodItem.name,
+      foodItemCategory: order.foodItem.category,
       quantity: order.quantity,
       unitPrice: toNumber(order.unitPrice.toString()),
       totalAmount: itemTotal,
       isSale: order.isSale,
     });
+  }
+
+  // Same "desserts don't interleave with mains" grouping as the food item
+  // pickers above, applied to how an already-placed order's items display.
+  for (const group of groups) {
+    for (const batch of group.batches) {
+      batch.items.sort((a, b) => {
+        const rankDiff = categoryRank(a.foodItemCategory) - categoryRank(b.foodItemCategory);
+        return rankDiff !== 0 ? rankDiff : a.foodItemName.localeCompare(b.foodItemName);
+      });
+    }
   }
 
   return (
@@ -202,12 +251,12 @@ export default async function OrdersPage({
         menuByDateForManager={menuByDateForManager}
         createOrderAction={createOrder}
         menuByDateForOrder={menuByDate}
-        allFoodItems={foodItems.map((item) => ({
+        allFoodItems={sortedFoodItems.map((item) => ({
           id: item.id,
           name: item.name,
           sellingPrice: item.sellingPrice.toString(),
         }))}
-        allFoodItemNames={foodItems.map((item) => item.name)}
+        allFoodItemNames={sortedFoodItems.map((item) => item.name)}
         defaultDate={date}
       />
 
@@ -267,10 +316,13 @@ export default async function OrdersPage({
           Reset
         </Link>
       </FilterForm>
-      {search && (
+      {spansAllDays && (
         <p className="-mt-4 text-xs text-brand-brown-light">
-          Showing results for &quot;{search}&quot; across all days — not just
-          the Managing day above.
+          {search ? (
+            <>Showing results for &quot;{search}&quot; across all days — not just the Managing day above.</>
+          ) : (
+            <>Showing every day&apos;s orders matching this filter — not just the Managing day above.</>
+          )}
         </p>
       )}
 
@@ -280,7 +332,7 @@ export default async function OrdersPage({
             {search
               ? "No orders match this search."
               : payment || delivery
-                ? "No orders match this filter for this day."
+                ? "No orders match this filter."
                 : "No orders recorded for this day yet."}
           </p>
         ) : (
@@ -289,10 +341,11 @@ export default async function OrdersPage({
             toggleOrderPaymentStatus={toggleOrderPaymentStatus}
             updateOrderDeliveryStatus={updateOrderDeliveryStatus}
             updateOrderPaymentMode={updateOrderPaymentMode}
+            updateOrderCustomerName={updateOrderCustomerName}
             updateOrderItem={updateOrderItem}
             addOrderItem={addOrderItem}
             menuByDate={menuByDate}
-            allFoodItems={foodItems.map((item) => ({
+            allFoodItems={sortedFoodItems.map((item) => ({
               id: item.id,
               name: item.name,
               sellingPrice: item.sellingPrice.toString(),
@@ -304,12 +357,13 @@ export default async function OrdersPage({
             bulkUpdateDeliveryStatus={bulkUpdateDeliveryStatus}
           />
         )}
-        {search && (
+        {spansAllDays && (
           <Pagination
             page={page}
             totalPages={totalPages}
             buildHref={(p) => {
-              const params = new URLSearchParams({ date, search, page: String(p) });
+              const params = new URLSearchParams({ date, page: String(p) });
+              if (search) params.set("search", search);
               if (payment) params.set("payment", payment);
               if (delivery) params.set("delivery", delivery);
               return `/orders?${params.toString()}`;

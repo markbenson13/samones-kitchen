@@ -142,7 +142,7 @@ async function removeSaleCarryover(
 // it). If quantity later exceeds quantityMade, that's an intentional signal
 // — SalesTable already renders it as a red "leftover", nudging the admin to
 // go correct Tubs made, not a state to prevent.
-async function addRegularContribution(
+export async function addRegularContribution(
   foodItemId: string,
   date: Date,
   quantity: number,
@@ -208,6 +208,20 @@ async function removeRegularContribution(
       unitPrice: newQuantity > 0 ? newTotal / newQuantity : Number(existing.unitPrice),
       totalAmount: newTotal,
     },
+  });
+}
+
+// No-op for a food item that isn't inventory-tracked (no Inventory row
+// exists for it) — updateMany simply affects 0 rows, so Orders stays
+// agnostic about which items happen to be tracked. Allowed to go negative
+// (an oversold item becomes a visible red flag to restock/correct, not a
+// state this blocks) — this is an automatic side effect of placing an
+// order, not the deliberate "Sell" action on the Inventory page itself,
+// which does validate against available stock.
+export async function adjustInventoryStock(foodItemId: string, delta: number) {
+  await prisma.inventory.updateMany({
+    where: { foodItemId },
+    data: { stock: { increment: delta } },
   });
 }
 
@@ -287,11 +301,13 @@ export async function createOrder(formData: FormData) {
     } else {
       await addRegularContribution(foodItemId, date, quantity, unitPrice);
     }
+    await adjustInventoryStock(foodItemId, -quantity);
   }
 
   revalidatePath("/orders");
   revalidatePath("/sales");
   revalidatePath("/dashboard");
+  revalidatePath("/inventory");
 }
 
 // Adds one more line item to an already-placed order — for when a customer's
@@ -359,10 +375,12 @@ export async function addOrderItem(formData: FormData) {
   } else {
     await addRegularContribution(foodItemId, existing.date, quantity, unitPrice);
   }
+  await adjustInventoryStock(foodItemId, -quantity);
 
   revalidatePath("/orders");
   revalidatePath("/sales");
   revalidatePath("/dashboard");
+  revalidatePath("/inventory");
 }
 
 // Edits a single order line item's food item, quantity, and sale price in
@@ -431,6 +449,8 @@ export async function updateOrderItem(formData: FormData) {
   } else {
     await addRegularContribution(foodItemId, old.date, quantity, unitPrice);
   }
+  await adjustInventoryStock(old.foodItemId, old.quantity);
+  await adjustInventoryStock(foodItemId, -quantity);
   // Note: restoreRegularMade doesn't mirror reduceRegularMade's floor, so a
   // floor-limited original transfer can over-restore here on a full
   // sale->not-sale edit — same pre-existing asymmetry plain deleteOrder has
@@ -439,6 +459,7 @@ export async function updateOrderItem(formData: FormData) {
   revalidatePath("/orders");
   revalidatePath("/sales");
   revalidatePath("/dashboard");
+  revalidatePath("/inventory");
 }
 
 export async function toggleOrderPaymentStatus(
@@ -529,6 +550,23 @@ export async function updateOrderPaymentMode(formData: FormData) {
   revalidatePath("/orders");
 }
 
+// Fixes a mistyped building/unit after the fact — every row in the batch
+// shares one customerName, so this is a whole-batch update, same as
+// payment/delivery/mode above, not a per-item one.
+export async function updateOrderCustomerName(formData: FormData) {
+  await requireAdmin();
+  const groupKey = String(formData.get("groupKey") ?? "");
+  const customerName = String(formData.get("customerName") ?? "").trim();
+  if (!groupKey) throw new Error("Missing order");
+  if (!customerName) throw new Error("Customer name / unit is required");
+  await prisma.order.updateMany({
+    where: groupWhere(groupKey),
+    data: { customerName },
+  });
+  revalidatePath("/orders");
+  revalidatePath("/dashboard");
+}
+
 async function reverseOrderContribution(order: {
   foodItemId: string;
   date: Date;
@@ -551,6 +589,7 @@ async function reverseOrderContribution(order: {
       Number(order.unitPrice)
     );
   }
+  await adjustInventoryStock(order.foodItemId, order.quantity);
 }
 
 export async function deleteOrder(id: string) {
@@ -560,6 +599,7 @@ export async function deleteOrder(id: string) {
   revalidatePath("/orders");
   revalidatePath("/sales");
   revalidatePath("/dashboard");
+  revalidatePath("/inventory");
 }
 
 // Shared by deleteOrders (by id list) and deleteOrderBatch (by group) —
@@ -575,6 +615,7 @@ async function deleteOrdersWhere(where: Prisma.OrderWhereInput) {
   revalidatePath("/orders");
   revalidatePath("/sales");
   revalidatePath("/dashboard");
+  revalidatePath("/inventory");
 }
 
 export async function deleteOrders(ids: string[]) {

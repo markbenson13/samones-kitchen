@@ -16,6 +16,8 @@ import {
 import { PaymentModeSelect } from "./payment-mode-select";
 import { DeliveryStatusSelect } from "./delivery-status-select";
 import { useToast, withToast } from "@/components/toast";
+import { Combobox } from "@/components/combobox";
+import { BUILDINGS, buildingCode, parseCustomerName } from "./building-codes";
 
 type FoodItemOption = { id: string; name: string; sellingPrice: string };
 
@@ -308,6 +310,85 @@ function AddItemToOrderRow({
   );
 }
 
+function EditCustomerRow({
+  groupKey,
+  customerName,
+  onCancel,
+  updateOrderCustomerName,
+}: {
+  groupKey: string;
+  customerName: string;
+  onCancel: () => void;
+  updateOrderCustomerName: (formData: FormData) => void | Promise<void>;
+}) {
+  const parsed = useMemo(() => parseCustomerName(customerName), [customerName]);
+  const [building, setBuilding] = useState(parsed.building);
+  const [unitNumber, setUnitNumber] = useState(parsed.unitNumber);
+  const toast = useToast();
+
+  return (
+    <tr className="border-t border-brand-tan bg-brand-cream/40">
+      <td />
+      <td colSpan={3} className="px-4 py-3 pl-8">
+        <form suppressHydrationWarning
+          action={async (formData) => {
+            const nextCustomerName = `${buildingCode(building)}-${unitNumber.trim()}`;
+            formData.set("customerName", nextCustomerName);
+            const ok = await withToast(
+              toast,
+              () => updateOrderCustomerName(formData),
+              `Updated to ${nextCustomerName}.`
+            );
+            if (ok) onCancel();
+          }}
+          className="flex flex-wrap items-end gap-3"
+        >
+          <input suppressHydrationWarning type="hidden" name="groupKey" value={groupKey} />
+          <div>
+            <label className="block text-xs font-medium text-brand-brown-light">
+              Building
+            </label>
+            <div className="mt-1">
+              <Combobox
+                name="building"
+                required
+                value={building}
+                onChange={setBuilding}
+                options={BUILDINGS}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-brand-brown-light">
+              Unit number
+            </label>
+            <input suppressHydrationWarning
+              type="text"
+              required
+              value={unitNumber}
+              onChange={(e) => setUnitNumber(e.target.value)}
+              className="mt-1 w-32 rounded-md border border-brand-tan px-3 py-2 text-sm"
+            />
+          </div>
+          <SubmitButton
+            spinnerClassName="h-3 w-3"
+            className="rounded-md bg-brand-red px-3 py-2 text-xs font-medium text-white hover:bg-brand-red-dark"
+          >
+            Save
+          </SubmitButton>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-brand-tan px-3 py-2 text-xs font-medium text-brand-brown hover:bg-brand-cream"
+          >
+            Cancel
+          </button>
+        </form>
+      </td>
+    </tr>
+  );
+}
+
 type Batch = {
   key: string;
   customerName: string;
@@ -356,6 +437,7 @@ export function OrdersTable({
   toggleOrderPaymentStatus,
   updateOrderDeliveryStatus,
   updateOrderPaymentMode,
+  updateOrderCustomerName,
   updateOrderItem,
   addOrderItem,
   menuByDate,
@@ -373,6 +455,7 @@ export function OrdersTable({
   ) => void | Promise<void>;
   updateOrderDeliveryStatus: (formData: FormData) => void | Promise<void>;
   updateOrderPaymentMode: (formData: FormData) => void | Promise<void>;
+  updateOrderCustomerName: (formData: FormData) => void | Promise<void>;
   updateOrderItem: (formData: FormData) => void | Promise<void>;
   addOrderItem: (formData: FormData) => void | Promise<void>;
   menuByDate: Record<string, FoodItemOption[]>;
@@ -393,6 +476,7 @@ export function OrdersTable({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editOpenId, setEditOpenId] = useState<string | null>(null);
   const [addItemOpenKey, setAddItemOpenKey] = useState<string | null>(null);
+  const [editCustomerOpenKey, setEditCustomerOpenKey] = useState<string | null>(null);
   const toast = useToast();
 
   const sortedGroups = useMemo(
@@ -561,7 +645,22 @@ export function OrdersTable({
               <tr className="bg-brand-cream/50 last:border-0">
                 <td />
                 <td colSpan={3} className="px-4 py-2 font-medium text-brand-brown">
-                  {batch.customerName}
+                  <span className="inline-flex items-center gap-1.5">
+                    {batch.customerName}
+                    <button
+                      type="button"
+                      aria-label={`Edit ${batch.customerName}'s building/unit`}
+                      title="Edit building/unit"
+                      onClick={() =>
+                        setEditCustomerOpenKey((cur) =>
+                          cur === batch.key ? null : batch.key
+                        )
+                      }
+                      className="text-brand-brown-light hover:text-brand-red"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
                   {batch.items.length > 1 && (
                     <span className="ml-2 text-xs font-normal text-brand-brown-light">
                       {batch.items.length} items
@@ -657,6 +756,14 @@ export function OrdersTable({
                   </div>
                 </td>
               </tr>
+              {editCustomerOpenKey === batch.key && (
+                <EditCustomerRow
+                  groupKey={batch.key}
+                  customerName={batch.customerName}
+                  onCancel={() => setEditCustomerOpenKey(null)}
+                  updateOrderCustomerName={updateOrderCustomerName}
+                />
+              )}
               {addItemOpenKey === batch.key && (
                 <AddItemToOrderRow
                   groupKey={batch.key}

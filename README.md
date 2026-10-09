@@ -6,6 +6,9 @@ An admin web app for running a home-cooked Filipino food (ulam) selling and cate
   dispatch → Delivered) and mode of payment, edit or add items to an existing order
 - **Sales** — record what was actually made and sold per food item per day, with a "Sale" (discounted) price
   option; a regular order automatically carries its quantity/revenue into Sales so nothing has to be logged twice
+- **Inventory** — stock counts for items made in a batch and sold down over several days (currently desserts),
+  instead of made-and-sold-fresh daily like the rest of the menu; restock when a new batch is made, and a sale
+  (from here, or from a customer order) draws down the same stock and still logs onto Sales/Dashboard
 - **Market Costs** — log a market trip's ingredients/supplies, one or several items at once
 - **Expenses** — log other business costs (gas, packaging, delivery, etc.)
 - **Food Items** — set cost price / selling price per dish, active/inactive status

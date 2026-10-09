@@ -34,6 +34,26 @@ model FoodItem {
   sales      Sale[]
   orders     Order[]
   dailyMenus DailyMenu[]
+  inventory  Inventory?
+}
+
+// A running stock count for items that are made in a batch and sold down
+// over several days (currently: desserts) rather than made-and-sold fresh
+// each day — so the admin doesn't have to log a Sales-page entry for them
+// every single day. One row per tracked FoodItem; "Restock" adds to it,
+// "Sell" subtracts and (like a regular order) also logs the sale onto that
+// day's Sale row so Dashboard revenue reporting is unaffected. A customer
+// Order for a tracked item draws from this same stock automatically.
+model Inventory {
+  id         String   @id @default(cuid())
+  foodItemId String   @unique
+  foodItem   FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
+  // Intentionally allowed to go negative (same philosophy as Sale's
+  // "leftover" — a visible red flag prompting a restock/correction, not a
+  // state to silently prevent) rather than hard-blocking a customer order.
+  stock      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model MarketCost {

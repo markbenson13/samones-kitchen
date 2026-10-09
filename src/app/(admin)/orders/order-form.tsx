@@ -6,35 +6,11 @@ import { formatMoney } from "@/lib/money";
 import { SubmitButton } from "@/components/submit-button";
 import { Combobox } from "@/components/combobox";
 import { useToast, withToast } from "@/components/toast";
+import { BUILDINGS, buildingCode } from "./building-codes";
 
 type FoodItemOption = { id: string; name: string; sellingPrice: string };
 
 const PAYMENT_MODES = ["Cash", "GCash", "Both"];
-
-// Buildings are grouped under their tower so the customer code (tower
-// initial + building initial) is unique — Amina and Astra both start with
-// "A", so a building-initial-only code collided ("A-1234" for either).
-// Combining with the tower initial (Allegra/Amina -> "AA", Prisma/Astra ->
-// "PA") fixes that without changing the picker itself.
-const BUILDING_TOWERS: Record<string, string[]> = {
-  Prisma: ["Celeste", "Astra", "Kiran"],
-  Allegra: ["Amina", "Soraya"],
-};
-const BUILDINGS = Object.values(BUILDING_TOWERS).flat();
-const TOWER_BY_BUILDING = new Map(
-  Object.entries(BUILDING_TOWERS).flatMap(([tower, buildings]) =>
-    buildings.map((building) => [building, tower] as const)
-  )
-);
-
-function buildingCode(building: string): string {
-  const trimmed = building.trim();
-  const tower = TOWER_BY_BUILDING.get(trimmed);
-  if (tower) return `${tower.charAt(0)}${trimmed.charAt(0)}`.toUpperCase();
-  // A building typed in that isn't one of the known ones has no tower to
-  // combine with — fall back to its own first two letters.
-  return trimmed.slice(0, 2).toUpperCase();
-}
 
 export function OrderForm({
   action,
@@ -257,21 +233,51 @@ export function OrderForm({
                 <span className="text-brand-brown">{item.name}</span>
               </span>
               <span className="flex items-center gap-2">
-                <input suppressHydrationWarning
-                  type="number"
-                  name={`quantity_${item.id}`}
-                  min="1"
-                  step="1"
-                  defaultValue={1}
-                  ref={(el) => {
-                    quantityInputs.current[item.id] = el;
-                  }}
-                  onChange={(e) =>
-                    handleQuantityChange(item.id, Number(e.target.value) || 1)
-                  }
-                  className="w-16 rounded-md border border-brand-tan px-2 py-1 text-sm"
-                  title="Quantity"
-                />
+                <span className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    aria-label={`Decrease quantity for ${item.name}`}
+                    onClick={() => {
+                      const input = quantityInputs.current[item.id];
+                      if (!input) return;
+                      const next = Math.max(1, (Number(input.value) || 1) - 1);
+                      input.value = String(next);
+                      handleQuantityChange(item.id, next);
+                    }}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-brand-tan text-brand-brown hover:bg-brand-cream"
+                  >
+                    −
+                  </button>
+                  <input suppressHydrationWarning
+                    type="number"
+                    name={`quantity_${item.id}`}
+                    min="1"
+                    step="1"
+                    defaultValue={1}
+                    ref={(el) => {
+                      quantityInputs.current[item.id] = el;
+                    }}
+                    onChange={(e) =>
+                      handleQuantityChange(item.id, Number(e.target.value) || 1)
+                    }
+                    className="w-12 rounded-md border border-brand-tan px-1 py-1 text-center text-sm"
+                    title="Quantity"
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Increase quantity for ${item.name}`}
+                    onClick={() => {
+                      const input = quantityInputs.current[item.id];
+                      if (!input) return;
+                      const next = (Number(input.value) || 1) + 1;
+                      input.value = String(next);
+                      handleQuantityChange(item.id, next);
+                    }}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-brand-tan text-brand-brown hover:bg-brand-cream"
+                  >
+                    +
+                  </button>
+                </span>
                 <label
                   className="flex items-center gap-1 text-[11px] text-brand-brown-light"
                   title="Check to sell this item at a discounted price"

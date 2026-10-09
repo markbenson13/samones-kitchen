@@ -180,6 +180,16 @@ export default async function DashboardPage({
     quantity: group._sum.quantity ?? 0,
   }));
 
+  // Pre-dates the tower+building customer code — a bare "A-1234" was
+  // recorded back when the code was just the building's first letter, and
+  // was genuinely ambiguous between Amina and Astra (both start with "A").
+  // For this ranking specifically, treat every one as Amina/Allegra ("AA-"),
+  // so it merges into that bucket instead of sitting in its own orphaned
+  // "A-" one that no current order ever produces.
+  function normalizeForRanking(customerName: string): string {
+    return customerName.startsWith("A-") ? `AA-${customerName.slice(2)}` : customerName;
+  }
+
   // Batches (orderGroupId ?? id), not raw line items — a customer who
   // ordered 3 dishes in one order placed once, not three times.
   const customerStats = new Map<
@@ -187,13 +197,14 @@ export default async function DashboardPage({
     { batchKeys: Set<string>; totalSpend: number }
   >();
   for (const order of rangeOrders) {
-    const stat = customerStats.get(order.customerName) ?? {
+    const customerName = normalizeForRanking(order.customerName);
+    const stat = customerStats.get(customerName) ?? {
       batchKeys: new Set<string>(),
       totalSpend: 0,
     };
     stat.batchKeys.add(order.orderGroupId ?? order.id);
     stat.totalSpend += order.quantity * toNumber(order.unitPrice.toString());
-    customerStats.set(order.customerName, stat);
+    customerStats.set(customerName, stat);
   }
   const topCustomers = Array.from(customerStats.entries())
     .map(([customerName, stat]) => ({
@@ -411,7 +422,7 @@ export default async function DashboardPage({
         <h2 className="text-sm font-medium text-brand-brown">
           {formatRangeDate(fromDate)} – {formatRangeDate(toDate)}
         </h2>
-        <div className="mt-4 h-72">
+        <div className="mt-4 h-80">
           <IncomeChart data={chartData} />
         </div>
       </section>
