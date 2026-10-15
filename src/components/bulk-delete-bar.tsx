@@ -18,11 +18,15 @@ export function BulkDeleteBar({
   if (count === 0) return null;
 
   return (
-    <div className="flex items-center justify-between border-b border-brand-tan bg-brand-cream/60 px-4 py-2">
+    <div className="flex flex-col gap-2 border-b border-brand-tan bg-brand-cream/60 px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
       <span className="text-sm font-medium text-brand-brown">
         {count} selected
       </span>
-      <div className="flex items-center gap-2">
+      {/* flex-wrap — on a narrow phone, a category select plus "Set
+          category"/"Delete selected" buttons together don't fit on one
+          line, and without wrap they'd silently overflow past the screen
+          edge with no way to reach them. */}
+      <div className="flex flex-wrap items-center gap-2">
         {extraActions}
         <form suppressHydrationWarning action={action}>
           <ConfirmSubmitButton

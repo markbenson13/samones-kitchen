@@ -74,6 +74,9 @@ model Saving {
   date        DateTime @default(now())
   description String
   amount      Decimal  @db.Decimal(10, 2)
+  // "Deposit" or "Withdrawal" — amount is always stored positive, this is
+  // what flips its sign for the running balance (see src/lib/saving-types.ts).
+  type        String   @default("Deposit")
   createdAt   DateTime @default(now())
 
   @@index([date])

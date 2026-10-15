@@ -4,11 +4,13 @@ import { useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { useToast, withToast } from "@/components/toast";
+import { SAVING_TYPES } from "@/lib/saving-types";
 
 export type EditingSaving = {
   id: string;
   description: string;
   amount: string;
+  type: string;
   date: string;
 };
 
@@ -26,6 +28,7 @@ export function SavingForm({
   const [id, setId] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
+  const [type, setType] = useState<string>(SAVING_TYPES[0]);
   const [date, setDate] = useState(defaultDate);
   const toast = useToast();
 
@@ -39,6 +42,7 @@ export function SavingForm({
     setId(editingSaving.id);
     setDescription(editingSaving.description);
     setAmount(editingSaving.amount);
+    setType(editingSaving.type);
     setDate(editingSaving.date);
   }
 
@@ -46,6 +50,7 @@ export function SavingForm({
     setId("");
     setDescription("");
     setAmount("");
+    setType(SAVING_TYPES[0]);
     setDate(defaultDate);
     onCancelEdit?.();
   }
@@ -57,7 +62,11 @@ export function SavingForm({
         const ok = await withToast(
           toast,
           () => action(formData),
-          isEdit ? `"${description}" updated.` : `"${description}" added to savings.`
+          isEdit
+            ? `"${description}" updated.`
+            : type === "Withdrawal"
+              ? `"${description}" withdrawn from savings.`
+              : `"${description}" added to savings.`
         );
         if (ok) resetForm();
       }}
@@ -105,6 +114,23 @@ export function SavingForm({
           className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
         />
       </div>
+      <div>
+        <label className="block text-xs font-medium text-brand-brown-light">
+          Type
+        </label>
+        <select suppressHydrationWarning
+          name="type"
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
+        >
+          {SAVING_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <div className="flex items-end gap-2 lg:col-span-4">
         {id ? (
@@ -119,10 +145,10 @@ export function SavingForm({
           </ConfirmSubmitButton>
         ) : (
           <SubmitButton
-            pendingText="Adding…"
+            pendingText={type === "Withdrawal" ? "Withdrawing…" : "Adding…"}
             className="rounded-md bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-brand-red-dark"
           >
-            Add to savings
+            {type === "Withdrawal" ? "Withdraw from savings" : "Add to savings"}
           </SubmitButton>
         )}
         {id && (

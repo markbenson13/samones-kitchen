@@ -52,3 +52,21 @@ body {
 button:not(:disabled) {
   cursor: pointer;
 }
+
+/* Printing just one on-screen element (e.g. a receipt modal) — hide
+   everything else, then un-hide that element's own subtree and pin it to
+   the page so it isn't still constrained to its on-screen modal box size. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+  }
+}

@@ -18,12 +18,13 @@ type SavingRow = {
   id: string;
   description: string;
   amount: string;
+  type: string;
   date: string;
 };
 
 type Group = { key: string; label: string; items: SavingRow[]; subtotal: number };
 
-type SortKey = "description" | "amount";
+type SortKey = "description" | "amount" | "type";
 
 function sortItems(items: SavingRow[], sort: SortState<SortKey>) {
   if (!sort) return items;
@@ -37,6 +38,8 @@ function sortItems(items: SavingRow[], sort: SortState<SortKey>) {
         );
       case "amount":
         return sign * compareValues(toNumber(a.amount), toNumber(b.amount));
+      case "type":
+        return sign * compareValues(a.type, b.type);
     }
   });
 }
@@ -117,6 +120,12 @@ export function SavingsTable({
             onSort={(key) => setSort(nextSortState(sort, key))}
           />
           <SortableHeader
+            label="Type"
+            sortKey="type"
+            currentSort={sort}
+            onSort={(key) => setSort(nextSortState(sort, key))}
+          />
+          <SortableHeader
             label="Amount"
             sortKey="amount"
             currentSort={sort}
@@ -129,7 +138,7 @@ export function SavingsTable({
         <CollapsibleGroup
           key={group.key}
           label={group.label}
-          labelColSpan={2}
+          labelColSpan={3}
           subtotal={formatMoney(group.subtotal)}
           trailingColSpan={1}
         >
@@ -146,7 +155,15 @@ export function SavingsTable({
               <td className="px-4 py-3 font-medium text-brand-brown">
                 {saving.description}
               </td>
-              <td className="px-4 py-3">{formatMoney(saving.amount)}</td>
+              <td className="px-4 py-3 text-brand-brown-light">{saving.type}</td>
+              <td
+                className={`px-4 py-3 ${
+                  saving.type === "Withdrawal" ? "text-red-600" : "text-brand-brown"
+                }`}
+              >
+                {saving.type === "Withdrawal" ? "− " : "+ "}
+                {formatMoney(saving.amount)}
+              </td>
               <td className="px-4 py-3 text-right">
                 <div className="flex items-center justify-end gap-3">
                   <button
@@ -189,7 +206,7 @@ export function SavingsTable({
       ))}
       <tfoot className="border-t-2 border-brand-tan bg-brand-cream">
         <tr>
-          <td className="px-4 py-3 font-medium text-brand-brown" colSpan={2}>
+          <td className="px-4 py-3 font-medium text-brand-brown" colSpan={3}>
             {totalLabel}
           </td>
           <td className="px-4 py-3 font-semibold text-brand-brown">

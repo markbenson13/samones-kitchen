@@ -17,9 +17,9 @@ import {
 const NAV_LINKS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/food-items", label: "Food Items", icon: UtensilsCrossed },
+  { href: "/inventory", label: "Inventory", icon: Package },
   { href: "/orders", label: "Orders", icon: ClipboardList },
   { href: "/sales", label: "Sales", icon: Receipt },
-  { href: "/inventory", label: "Inventory", icon: Package },
   { href: "/market-costs", label: "Market Costs", icon: ShoppingBasket },
   { href: "/expenses", label: "Expenses", icon: Wallet },
   { href: "/savings", label: "Savings", icon: PiggyBank },
@@ -30,11 +30,13 @@ export function NavLink({
   label,
   icon: Icon,
   collapsed = false,
+  onNavigate,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
   collapsed?: boolean;
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const isActive = pathname === href || pathname?.startsWith(`${href}/`);
@@ -42,6 +44,7 @@ export function NavLink({
   return (
     <Link
       href={href}
+      onClick={onNavigate}
       title={collapsed ? label : undefined}
       className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium ${
         collapsed ? "justify-center" : ""
@@ -57,7 +60,13 @@ export function NavLink({
   );
 }
 
-export function NavLinks({ collapsed = false }: { collapsed?: boolean }) {
+export function NavLinks({
+  collapsed = false,
+  onNavigate,
+}: {
+  collapsed?: boolean;
+  onNavigate?: () => void;
+}) {
   return (
     <nav className="flex flex-col gap-1">
       {NAV_LINKS.map((link) => (
@@ -67,6 +76,7 @@ export function NavLinks({ collapsed = false }: { collapsed?: boolean }) {
           label={link.label}
           icon={link.icon}
           collapsed={collapsed}
+          onNavigate={onNavigate}
         />
       ))}
     </nav>

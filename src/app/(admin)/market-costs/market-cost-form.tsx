@@ -193,8 +193,16 @@ export function MarketCostForm({
 
       <div className="space-y-2">
         {rows.map((row, i) => (
-          <div key={i} className="flex flex-wrap items-end gap-3">
-            <div className="min-w-0 flex-1">
+          // Stacked full-width on mobile — a fixed w-32 Amount field plus a
+          // Remove button don't leave enough room for Description to stay
+          // usable on a narrow phone; flex-wrap alone doesn't help here
+          // since flex-1 + min-w-0 lets it just shrink to near-nothing
+          // instead of wrapping the row.
+          <div
+            key={i}
+            className="flex flex-col gap-3 border-b border-brand-tan/60 pb-3 last:border-b-0 last:pb-0 sm:flex-row sm:flex-wrap sm:items-end sm:border-b-0 sm:pb-0"
+          >
+            <div className="w-full sm:min-w-0 sm:flex-1">
               {i === 0 && (
                 <label className="block text-xs font-medium text-brand-brown-light">
                   Description
@@ -210,7 +218,7 @@ export function MarketCostForm({
                 className="mt-1 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
               />
             </div>
-            <div className="w-32">
+            <div className="w-full sm:w-32">
               {i === 0 && (
                 <label className="block text-xs font-medium text-brand-brown-light">
                   Amount
@@ -231,7 +239,7 @@ export function MarketCostForm({
               type="button"
               onClick={() => removeRow(i)}
               disabled={rows.length === 1}
-              className="rounded-md border border-brand-tan px-3 py-2 text-xs font-medium text-brand-brown hover:bg-brand-cream disabled:cursor-not-allowed disabled:opacity-40"
+              className="self-start rounded-md border border-brand-tan px-3 py-2 text-xs font-medium text-brand-brown hover:bg-brand-cream disabled:cursor-not-allowed disabled:opacity-40 sm:self-auto"
             >
               Remove
             </button>

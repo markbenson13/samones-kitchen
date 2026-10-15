@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Receipt as ReceiptIcon, Trash2 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -18,6 +18,7 @@ import { DeliveryStatusSelect } from "./delivery-status-select";
 import { useToast, withToast } from "@/components/toast";
 import { Combobox } from "@/components/combobox";
 import { BUILDINGS, buildingCode, parseCustomerName } from "./building-codes";
+import { ReceiptModal } from "./receipt-modal";
 
 type FoodItemOption = { id: string; name: string; sellingPrice: string };
 
@@ -500,6 +501,10 @@ export function OrdersTable({
   const [editOpenId, setEditOpenId] = useState<string | null>(null);
   const [addItemOpenKey, setAddItemOpenKey] = useState<string | null>(null);
   const [editCustomerOpenKey, setEditCustomerOpenKey] = useState<string | null>(null);
+  const [receiptBatch, setReceiptBatch] = useState<{
+    batch: Batch;
+    dayLabel: string;
+  } | null>(null);
   const toast = useToast();
 
   const sortedGroups = useMemo(
@@ -584,7 +589,7 @@ export function OrdersTable({
         action={handleBulkDelete}
         extraActions={
           selected.size > 0 ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <form suppressHydrationWarning action={handleMarkPaid}>
                 <SubmitButton
                   spinnerClassName="h-3 w-3"
@@ -759,6 +764,17 @@ export function OrdersTable({
                     <button
                       type="button"
                       onClick={() =>
+                        setReceiptBatch({ batch, dayLabel: group.label })
+                      }
+                      aria-label={`View receipt for ${batch.customerName}`}
+                      title="View receipt"
+                      className="text-brand-brown-light hover:text-brand-red"
+                    >
+                      <ReceiptIcon className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
                         setAddItemOpenKey((cur) =>
                           cur === batch.key ? null : batch.key
                         )
@@ -891,6 +907,18 @@ export function OrdersTable({
       ))}
       </table>
       </div>
+      {receiptBatch && (
+        <ReceiptModal
+          customerName={receiptBatch.batch.customerName}
+          dayLabel={receiptBatch.dayLabel}
+          deliveryNote={receiptBatch.batch.deliveryNote}
+          paymentStatus={receiptBatch.batch.paymentStatus}
+          paymentMode={receiptBatch.batch.paymentMode}
+          items={receiptBatch.batch.items}
+          totalAmount={receiptBatch.batch.totalAmount}
+          onClose={() => setReceiptBatch(null)}
+        />
+      )}
     </>
   );
 }

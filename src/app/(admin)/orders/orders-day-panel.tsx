@@ -49,16 +49,18 @@ export function OrdersDayPanel({
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center gap-3">
-        <label className="text-sm font-medium text-brand-brown-light">
-          Managing day
-        </label>
-        <input suppressHydrationWarning
-          type="date"
-          value={date}
-          onChange={(e) => handleDateChange(e.target.value)}
-          className="rounded-md border border-brand-tan px-3 py-2 text-sm"
-        />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-brand-brown-light">
+            Managing day
+          </label>
+          <input suppressHydrationWarning
+            type="date"
+            value={date}
+            onChange={(e) => handleDateChange(e.target.value)}
+            className="rounded-md border border-brand-tan px-3 py-2 text-sm"
+          />
+        </div>
         <p className="text-xs text-brand-brown-light">
           Sets the menu you&apos;re editing below, the day new orders are
           recorded for, and which day&apos;s orders are shown below.

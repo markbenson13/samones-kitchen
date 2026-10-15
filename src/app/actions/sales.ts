@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { parseDateInput } from "@/lib/date";
 import { revalidatePath } from "next/cache";
+import { adjustInventoryStock } from "./orders";
 
 async function requireAdmin() {
   const session = await auth();
@@ -97,10 +98,20 @@ export async function upsertSale(formData: FormData) {
       where: { id },
       data: { foodItemId, quantityMade, quantity, unitPrice, totalAmount, isSale, date },
     });
+    // Inventory sync: unconditionally reverse the old row's draw-down then
+    // reapply the new one — same "reverse-then-reapply" pattern Orders uses
+    // for its own edit path (adjustInventoryStock no-ops for a food item
+    // that isn't inventory-tracked, and this covers a changed foodItemId
+    // too, not just a changed quantity).
+    if (existing) {
+      await adjustInventoryStock(existing.foodItemId, existing.quantity);
+    }
+    await adjustInventoryStock(foodItemId, -quantity);
   } else {
     await prisma.sale.create({
       data: { foodItemId, quantityMade, quantity, unitPrice, totalAmount, isSale, date },
     });
+    await adjustInventoryStock(foodItemId, -quantity);
     // A brand-new Sale-tagged entry transfers its "made" out of that day's
     // regular-price row (if any), so its own leftover reads 0 — matching the
     // same one-time transfer Orders does when a Sale order auto-creates one.
@@ -111,6 +122,7 @@ export async function upsertSale(formData: FormData) {
 
   revalidatePath("/sales");
   revalidatePath("/dashboard");
+  revalidatePath("/inventory");
 }
 
 export async function deleteSale(id: string) {
@@ -119,22 +131,27 @@ export async function deleteSale(id: string) {
   if (sale.isSale) {
     await restoreRegularMade(sale.foodItemId, sale.date, sale.quantityMade);
   }
+  await adjustInventoryStock(sale.foodItemId, sale.quantity);
   revalidatePath("/sales");
   revalidatePath("/dashboard");
+  revalidatePath("/inventory");
 }
 
 export async function deleteSales(ids: string[]) {
   await requireAdmin();
   if (ids.length === 0) return;
   // Fetched before deleting so any Sale-tagged rows' transfer can be
-  // restored to the regular row it came out of.
+  // restored to the regular row it came out of, and each row's own draw-down
+  // can be restored to Inventory.
   const sales = await prisma.sale.findMany({ where: { id: { in: ids } } });
   await prisma.sale.deleteMany({ where: { id: { in: ids } } });
   for (const sale of sales) {
     if (sale.isSale) {
       await restoreRegularMade(sale.foodItemId, sale.date, sale.quantityMade);
     }
+    await adjustInventoryStock(sale.foodItemId, sale.quantity);
   }
   revalidatePath("/sales");
   revalidatePath("/dashboard");
+  revalidatePath("/inventory");
 }

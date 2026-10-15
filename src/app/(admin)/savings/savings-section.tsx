@@ -9,6 +9,7 @@ type SavingRow = {
   id: string;
   description: string;
   amount: string;
+  type: string;
   date: string;
 };
 
@@ -79,6 +80,7 @@ export function SavingsSection({
                 id: saving.id,
                 description: saving.description,
                 amount: saving.amount,
+                type: saving.type,
                 date: saving.date,
               });
               setFormOpen(true);

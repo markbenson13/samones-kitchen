@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatMoney, toNumber } from "@/lib/money";
 import {
@@ -62,27 +63,39 @@ export default async function SavingsPage({
       : {}),
   };
 
-  const [savings, totalAgg, allTimeAgg] = await Promise.all([
+  const [savings, [rangeAgg], [allTimeAgg]] = await Promise.all([
     prisma.saving.findMany({
       where,
       orderBy: { date: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
     }),
-    // _count and _sum together in one call instead of a separate count() +
-    // aggregate() round trip — same data, half the queries. Drives
+    // Count + net (deposits minus withdrawals) together in one call instead
+    // of a separate count() + aggregate() round trip. Prisma's aggregate()
+    // can't conditionally sum by `type`, hence the raw query — drives
     // pagination and the table's own (filtered) footer total.
-    prisma.saving.aggregate({ where, _count: true, _sum: { amount: true } }),
+    prisma.$queryRaw<{ count: number; net: Prisma.Decimal }[]>`
+      SELECT
+        COUNT(*)::int AS count,
+        COALESCE(SUM(CASE WHEN type = 'Withdrawal' THEN -amount ELSE amount END), 0) AS net
+      FROM "Saving"
+      WHERE date >= ${fromDate} AND date < ${toDateExclusive}
+      ${search ? Prisma.sql`AND description ILIKE ${`%${search}%`}` : Prisma.empty}
+    `,
     // All-time, deliberately not scoped to the range/search filters above —
     // "Total saved" is a running balance, not a period metric (same
     // reasoning as Dashboard's unpaid/pending orders figures).
-    prisma.saving.aggregate({ _sum: { amount: true } }),
+    prisma.$queryRaw<{ count: number; net: Prisma.Decimal }[]>`
+      SELECT COUNT(*)::int AS count,
+        COALESCE(SUM(CASE WHEN type = 'Withdrawal' THEN -amount ELSE amount END), 0) AS net
+      FROM "Saving"
+    `,
   ]);
 
-  const totalCount = totalAgg._count;
+  const totalCount = rangeAgg.count;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const total = toNumber(totalAgg._sum.amount?.toString() ?? "0");
-  const totalSaved = toNumber(allTimeAgg._sum.amount?.toString() ?? "0");
+  const total = toNumber(rangeAgg.net);
+  const totalSaved = toNumber(allTimeAgg.net);
 
   const groups: {
     key: string;
@@ -93,16 +106,17 @@ export default async function SavingsPage({
   for (const saving of savings) {
     const key = utcDateKey(saving.date);
     const amount = toNumber(saving.amount.toString());
+    const signedAmount = saving.type === "Withdrawal" ? -amount : amount;
     const currentGroup = groups[groups.length - 1];
     if (currentGroup && currentGroup.key === key) {
       currentGroup.items.push(saving);
-      currentGroup.subtotal += amount;
+      currentGroup.subtotal += signedAmount;
     } else {
       groups.push({
         key,
         label: formatGroupDate(saving.date),
         items: [saving],
-        subtotal: amount,
+        subtotal: signedAmount,
       });
     }
   }
@@ -112,9 +126,10 @@ export default async function SavingsPage({
       <div>
         <h1 className="text-2xl font-semibold text-brand-brown">Savings</h1>
         <p className="mt-1 text-sm text-brand-brown-light">
-          Money set aside out of the business — still counted as leaving the
-          operating till (see Available income on Expenses/Dashboard), but
-          tracked separately from money actually spent.
+          Money set aside out of the business, and withdrawals back out of
+          savings. Deposits count as leaving the operating till (see
+          Available income on Expenses/Dashboard); withdrawing from savings
+          frees that amount back up, same as if it hadn&apos;t been saved.
         </p>
       </div>
 
@@ -122,7 +137,8 @@ export default async function SavingsPage({
         <StatCard
           label="Total saved"
           value={formatMoney(totalSaved)}
-          subtitle="All time"
+          subtitle="All time balance"
+          tone={totalSaved >= 0 ? "positive" : "negative"}
         />
       </div>
 
@@ -184,6 +200,7 @@ export default async function SavingsPage({
             id: saving.id,
             description: saving.description,
             amount: saving.amount.toString(),
+            type: saving.type,
             date: utcDateKey(saving.date),
           })),
         }))}

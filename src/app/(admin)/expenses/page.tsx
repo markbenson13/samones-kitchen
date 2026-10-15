@@ -116,7 +116,7 @@ export default async function ExpensesPage({
       SELECT
         (SELECT COALESCE(SUM("totalAmount"), 0) FROM "Sale" WHERE date >= ${fromDate} AND date < ${toDateExclusive}) AS sales_total,
         (SELECT COALESCE(SUM(amount), 0) FROM "MarketCost" WHERE date >= ${fromDate} AND date < ${toDateExclusive}) AS costs_total,
-        (SELECT COALESCE(SUM(amount), 0) FROM "Saving" WHERE date >= ${fromDate} AND date < ${toDateExclusive}) AS savings_total
+        (SELECT COALESCE(SUM(CASE WHEN type = 'Withdrawal' THEN -amount ELSE amount END), 0) FROM "Saving" WHERE date >= ${fromDate} AND date < ${toDateExclusive}) AS savings_total
     `,
     ]);
 
@@ -167,7 +167,7 @@ export default async function ExpensesPage({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard label="Total sales" value={formatMoney(totalSales)} />
         <StatCard
           label="Total market costs"

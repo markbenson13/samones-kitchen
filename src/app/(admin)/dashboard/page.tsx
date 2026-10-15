@@ -90,7 +90,7 @@ export default async function DashboardPage({
       FROM "Expense"
       WHERE date >= ${fromDate} AND date < ${toDateExclusive}
       UNION ALL
-      SELECT date, amount, 'saving' AS source
+      SELECT date, CASE WHEN type = 'Withdrawal' THEN -amount ELSE amount END AS amount, 'saving' AS source
       FROM "Saving"
       WHERE date >= ${fromDate} AND date < ${toDateExclusive}
     `,
@@ -320,7 +320,7 @@ export default async function DashboardPage({
         <h2 className="text-sm font-medium text-brand-brown">
           {formatRangeDate(fromDate)} – {formatRangeDate(toDate)}
         </h2>
-        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard label="Total sales" value={formatMoney(totalSales)} />
           <StatCard label="Total market costs" value={formatMoney(totalCosts)} />
           <StatCard label="Total expenses" value={formatMoney(totalExpenses)} />

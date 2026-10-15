@@ -23,7 +23,12 @@ export default async function AdminLayout({
           clips printed output to whatever fit on screen, cutting off
           anything below the fold (e.g. the kitchen prep list). */}
       <div className="flex flex-1 flex-col overflow-y-auto bg-neutral-50 print:h-auto print:overflow-visible">
-        <main className="w-full flex-1 px-6 py-8">{children}</main>
+        {/* Extra top padding on mobile only — clears the floating menu
+            button, which is fixed-position and would otherwise overlap the
+            first line of page content (e.g. an h1) at that width. */}
+        <main className="w-full flex-1 px-4 pt-20 pb-8 sm:px-6 md:pt-8">
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { utcDateKey } from "@/lib/date";
 import { formatMoney } from "@/lib/money";
 import { SubmitButton } from "@/components/submit-button";
@@ -11,6 +11,8 @@ import { BUILDINGS, buildingCode } from "./building-codes";
 type FoodItemOption = { id: string; name: string; sellingPrice: string };
 
 const PAYMENT_MODES = ["Cash", "GCash", "Both"];
+
+type ItemDraft = { checked: boolean; quantity: number; isSale: boolean; price: number };
 
 export function OrderForm({
   action,
@@ -46,59 +48,59 @@ export function OrderForm({
     [options, search]
   );
 
-  // Tracks checked item + quantity + price so the running total can be shown
-  // live, without turning every checkbox/quantity/price input into a
-  // controlled field.
-  const [selections, setSelections] = useState<
-    Record<string, { quantity: number; price: number }>
-  >({});
-  // Price is only editable once "Sale" is checked for that item — otherwise
-  // it's locked to the item's normal selling price, so a price can't be
-  // changed by accident.
-  const [saleChecked, setSaleChecked] = useState<Record<string, boolean>>({});
+  // One record per item, independent of whether its row is currently
+  // mounted. An uncontrolled checkbox/input (the previous approach, read via
+  // refs) loses its value entirely when its row unmounts — which happens
+  // every time the search box filters it out and back in — silently
+  // desyncing the Total from whatever was visibly checked. Keeping
+  // everything in state instead means a row can come and go with the search
+  // filter without losing (or double-counting) anything.
+  const [itemDrafts, setItemDrafts] = useState<Record<string, ItemDraft>>({});
   const toast = useToast();
-  const quantityInputs = useRef<Record<string, HTMLInputElement | null>>({});
-  const priceInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  function handleCheckedChange(itemId: string, checked: boolean) {
-    setSelections((prev) => {
-      const next = { ...prev };
-      if (checked) {
-        const quantity = Number(quantityInputs.current[itemId]?.value) || 1;
-        const price = Number(priceInputs.current[itemId]?.value) || 0;
-        next[itemId] = { quantity, price };
-      } else {
-        delete next[itemId];
+  function draftFor(item: FoodItemOption): ItemDraft {
+    return (
+      itemDrafts[item.id] ?? {
+        checked: false,
+        quantity: 1,
+        isSale: false,
+        price: Number(item.sellingPrice),
       }
-      return next;
+    );
+  }
+
+  function updateDraft(item: FoodItemOption, patch: Partial<ItemDraft>) {
+    setItemDrafts((prev) => ({
+      ...prev,
+      [item.id]: { ...draftFor(item), ...patch },
+    }));
+  }
+
+  function handleCheckedChange(item: FoodItemOption, checked: boolean) {
+    updateDraft(item, { checked });
+  }
+
+  function handleSaleToggle(item: FoodItemOption, checked: boolean) {
+    updateDraft(item, {
+      isSale: checked,
+      // Resetting back to the item's normal price when "Sale" is
+      // unchecked — matches it being locked/disabled whenever not a Sale.
+      price: checked ? draftFor(item).price : Number(item.sellingPrice),
     });
   }
 
-  function handleSaleToggle(itemId: string, checked: boolean, normalPrice: string) {
-    setSaleChecked((prev) => ({ ...prev, [itemId]: checked }));
-    if (!checked) {
-      const input = priceInputs.current[itemId];
-      if (input) input.value = normalPrice;
-      handlePriceChange(itemId, Number(normalPrice) || 0);
-    }
+  function handleQuantityChange(item: FoodItemOption, quantity: number) {
+    updateDraft(item, { quantity });
   }
 
-  function handleQuantityChange(itemId: string, quantity: number) {
-    setSelections((prev) =>
-      itemId in prev ? { ...prev, [itemId]: { ...prev[itemId], quantity } } : prev
-    );
+  function handlePriceChange(item: FoodItemOption, price: number) {
+    updateDraft(item, { price });
   }
 
-  function handlePriceChange(itemId: string, price: number) {
-    setSelections((prev) =>
-      itemId in prev ? { ...prev, [itemId]: { ...prev[itemId], price } } : prev
-    );
-  }
-
-  const total = Object.values(selections).reduce(
-    (sum, { quantity, price }) => sum + quantity * price,
-    0
-  );
+  const total = options.reduce((sum, item) => {
+    const draft = itemDrafts[item.id];
+    return draft?.checked ? sum + draft.quantity * draft.price : sum;
+  }, 0);
 
   return (
     <form suppressHydrationWarning
@@ -114,8 +116,7 @@ export function OrderForm({
           setBuilding("Amina");
           setUnitNumber("");
           setDeliveryNote("");
-          setSelections({});
-          setSaleChecked({});
+          setItemDrafts({});
           setSearch("");
         }
       }}
@@ -230,11 +231,13 @@ export function OrderForm({
           className="mt-2 w-full rounded-md border border-brand-tan px-3 py-2 text-sm"
         />
         <div className="mt-2 max-h-64 divide-y divide-brand-tan/60 overflow-y-auto rounded-md border border-brand-tan">
-          {filteredOptions.map((item) => (
+          {filteredOptions.map((item) => {
+            const draft = draftFor(item);
+            return (
             <label
               key={item.id}
-              className={`flex items-center justify-between gap-3 px-3 py-2 text-sm ${
-                saleChecked[item.id] ? "bg-brand-gold/10" : ""
+              className={`flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm ${
+                draft.isSale ? "bg-brand-gold/10" : ""
               }`}
             >
               <span className="flex items-center gap-2">
@@ -242,23 +245,23 @@ export function OrderForm({
                   type="checkbox"
                   name="foodItemIds"
                   value={item.id}
-                  onChange={(e) => handleCheckedChange(item.id, e.target.checked)}
+                  checked={draft.checked}
+                  onChange={(e) => handleCheckedChange(item, e.target.checked)}
                   className="h-4 w-4 rounded border-brand-tan text-brand-red focus:ring-brand-red"
                 />
                 <span className="text-brand-brown">{item.name}</span>
               </span>
-              <span className="flex items-center gap-2">
+              {/* Wraps onto its own full-width line below the checkbox/name
+                  on a narrow phone — the stepper + Sale checkbox + price
+                  input together don't fit beside a long item name at 320px,
+                  and without this they'd silently overflow off-screen with
+                  no way to reach them (no horizontal scroll on this list). */}
+              <span className="flex w-full flex-wrap items-center gap-2 pl-6 sm:w-auto sm:flex-nowrap sm:pl-0">
                 <span className="flex items-center gap-1">
                   <button
                     type="button"
                     aria-label={`Decrease quantity for ${item.name}`}
-                    onClick={() => {
-                      const input = quantityInputs.current[item.id];
-                      if (!input) return;
-                      const next = Math.max(1, (Number(input.value) || 1) - 1);
-                      input.value = String(next);
-                      handleQuantityChange(item.id, next);
-                    }}
+                    onClick={() => handleQuantityChange(item, Math.max(1, draft.quantity - 1))}
                     className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-brand-tan text-brand-brown hover:bg-brand-cream"
                   >
                     −
@@ -268,12 +271,9 @@ export function OrderForm({
                     name={`quantity_${item.id}`}
                     min="1"
                     step="1"
-                    defaultValue={1}
-                    ref={(el) => {
-                      quantityInputs.current[item.id] = el;
-                    }}
+                    value={draft.quantity}
                     onChange={(e) =>
-                      handleQuantityChange(item.id, Number(e.target.value) || 1)
+                      handleQuantityChange(item, Number(e.target.value) || 1)
                     }
                     className="w-12 rounded-md border border-brand-tan px-1 py-1 text-center text-sm"
                     title="Quantity"
@@ -281,13 +281,7 @@ export function OrderForm({
                   <button
                     type="button"
                     aria-label={`Increase quantity for ${item.name}`}
-                    onClick={() => {
-                      const input = quantityInputs.current[item.id];
-                      if (!input) return;
-                      const next = (Number(input.value) || 1) + 1;
-                      input.value = String(next);
-                      handleQuantityChange(item.id, next);
-                    }}
+                    onClick={() => handleQuantityChange(item, draft.quantity + 1)}
                     className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-brand-tan text-brand-brown hover:bg-brand-cream"
                   >
                     +
@@ -300,10 +294,8 @@ export function OrderForm({
                   <input suppressHydrationWarning
                     type="checkbox"
                     name={`sale_${item.id}`}
-                    checked={!!saleChecked[item.id]}
-                    onChange={(e) =>
-                      handleSaleToggle(item.id, e.target.checked, item.sellingPrice)
-                    }
+                    checked={draft.isSale}
+                    onChange={(e) => handleSaleToggle(item, e.target.checked)}
                     className="h-3.5 w-3.5 rounded border-brand-tan text-brand-gold focus:ring-brand-gold"
                   />
                   Sale
@@ -313,24 +305,22 @@ export function OrderForm({
                   name={`price_${item.id}`}
                   min="0"
                   step="0.01"
-                  defaultValue={item.sellingPrice}
-                  disabled={!saleChecked[item.id]}
-                  ref={(el) => {
-                    priceInputs.current[item.id] = el;
-                  }}
+                  value={draft.price}
+                  disabled={!draft.isSale}
                   onChange={(e) =>
-                    handlePriceChange(item.id, Number(e.target.value) || 0)
+                    handlePriceChange(item, Number(e.target.value) || 0)
                   }
                   className="w-24 rounded-md border border-brand-tan px-2 py-1 text-sm disabled:bg-brand-cream disabled:text-brand-brown-light"
                   title={
-                    saleChecked[item.id]
+                    draft.isSale
                       ? "Sale price for this order"
                       : "Check \"Sale\" to lower this item's price for this order"
                   }
                 />
               </span>
             </label>
-          ))}
+            );
+          })}
         </div>
         <p className="mt-1 text-xs text-brand-brown-light">
           Check &quot;Sale&quot; next to an item to lower its price for this
